@@ -93,35 +93,29 @@ export default function Hero() {
         className="relative z-10 max-w-4xl mx-auto px-6 sm:px-8 text-center flex flex-col items-center pt-8 sm:pt-4 will-change-transform"
       >
         {/* Titolo con animazione di apertura graduale e morbido de-blur */}
-        <motion.h1
-          initial={{ opacity: 0, y: 28, filter: "blur(6px)" }}
-          animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
-          transition={{ duration: 0.9, ease: [0.16, 1, 0.3, 1], delay: 0.15 }}
-          className="text-3xl sm:text-5xl md:text-6xl font-extrabold tracking-tight text-white leading-[1.15] mb-4 drop-shadow-2xl"
+        <h1
+          style={{ animationDelay: "0.15s" }}
+          className="hero-rise text-3xl sm:text-5xl md:text-6xl font-extrabold tracking-tight text-white leading-[1.15] mb-4 drop-shadow-2xl"
         >
           {site.heroTitle}
           <br />
           <span className="bg-gradient-to-r from-white via-blue-200 to-blue-500 bg-clip-text text-transparent">
             {site.heroHighlight}
           </span>
-        </motion.h1>
+        </h1>
 
         {/* Sottotitolo in apertura sfalsata */}
-        <motion.p
-          initial={{ opacity: 0, y: 20, filter: "blur(4px)" }}
-          animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
-          transition={{ duration: 0.85, ease: [0.16, 1, 0.3, 1], delay: 0.35 }}
-          className="text-sm sm:text-base md:text-lg text-slate-300 max-w-lg font-light leading-relaxed mb-7 text-pretty"
+        <p
+          style={{ animationDelay: "0.35s" }}
+          className="hero-rise text-sm sm:text-base md:text-lg text-slate-300 max-w-lg font-light leading-relaxed mb-7 text-pretty"
         >
           {site.heroSubtitle}
-        </motion.p>
+        </p>
 
         {/* Action Buttons in apertura */}
-        <motion.div
-          initial={{ opacity: 0, y: 16 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1], delay: 0.5 }}
-          className="flex flex-wrap items-center justify-center gap-3.5"
+        <div
+          style={{ animationDelay: "0.5s" }}
+          className="hero-rise flex flex-wrap items-center justify-center gap-3.5"
         >
           <button
             onClick={scrollToCatalog}
@@ -137,7 +131,7 @@ export default function Hero() {
           >
             <span>I Nostri Servizi</span>
           </button>
-        </motion.div>
+        </div>
       </motion.div>
 
       {/* Volumetric Dark Mist / Nebbia Scura che sale dal fondo della Hero */}

@@ -102,7 +102,29 @@
   align-items: center;
 }
 
+/* Ingresso della Hero: in CSS, così parte anche prima dell'idratazione. */
+@keyframes hero-rise {
+  from {
+    opacity: 0;
+    transform: translateY(24px);
+    filter: blur(5px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+    filter: blur(0);
+  }
+}
+
+.hero-rise {
+  animation: hero-rise 0.9s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
 @media (prefers-reduced-motion: reduce) {
+  .hero-rise {
+    animation: none;
+  }
+
   .adm-slide-in,
   .adm-fade-in,
   .adm-rise {
@@ -126,6 +148,33 @@ body {
   overflow-x: hidden;
   selection-background-color: #0066ff;
   selection-color: #ffffff;
+}
+
+/* Mobile: niente zoom automatico di iOS al focus dei campi (scatta sotto i
+   16px) e niente ritardo di 300ms / flash grigio sul tocco. CSS fuori da
+   @layer, quindi vince sulle utility Tailwind (text-xs, text-sm). */
+@media (max-width: 1023px) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]),
+  select,
+  textarea {
+    font-size: 16px;
+  }
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
+}
+
+a,
+button,
+summary,
+[role="button"],
+[role="tab"],
+[role="option"],
+label {
+  touch-action: manipulation;
 }
 
 h1, h2, h3, h4, h5, h6 {

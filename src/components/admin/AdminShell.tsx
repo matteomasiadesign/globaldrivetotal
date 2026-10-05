@@ -185,7 +185,7 @@ function Frame({ children }: { children: React.ReactNode }) {
               key={href}
               href={href}
               aria-current={active ? "page" : undefined}
-              className={`relative flex flex-col items-center gap-1 py-2.5 text-xs font-medium transition-colors ${
+              className={`relative flex min-w-0 flex-col items-center gap-1 px-0.5 py-2.5 text-[11px] font-medium leading-none transition-colors ${
                 active ? "text-white" : "text-adm-muted"
               }`}
             >
@@ -197,7 +197,7 @@ function Frame({ children }: { children: React.ReactNode }) {
                   </span>
                 ) : null}
               </span>
-              <span>{label}</span>
+              <span className="max-w-full truncate">{label}</span>
             </Link>
           );
         })}

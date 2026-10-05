@@ -85,7 +85,7 @@ export default function Drawer({
 
         <div className="flex-1 space-y-6 overflow-y-auto px-5 py-5">{children}</div>
 
-        <footer className="flex items-center justify-end gap-2 border-t border-adm-line bg-adm-surface px-5 py-3">
+        <footer className="flex items-center justify-end gap-2 border-t border-adm-line bg-adm-surface px-5 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
           <button type="button" onClick={onClose} className={btnSecondary}>
             Annulla
           </button>

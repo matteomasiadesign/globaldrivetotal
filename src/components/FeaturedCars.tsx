@@ -78,7 +78,7 @@ export default function FeaturedCars() {
   return (
     <section
       id="catalogo"
-      className="relative z-20 -mt-16 sm:-mt-24 pt-28 pb-24 bg-[#060913] rounded-t-[2.5rem] sm:rounded-t-[3.5rem] border-t border-white/[0.08] shadow-[0_-30px_70px_rgba(0,0,0,0.9)] overflow-hidden scroll-mt-12"
+      className="relative z-20 -mt-16 sm:-mt-24 pt-24 sm:pt-28 pb-16 sm:pb-24 bg-[#060913] rounded-t-[2.5rem] sm:rounded-t-[3.5rem] border-t border-white/[0.08] shadow-[0_-30px_70px_rgba(0,0,0,0.9)] overflow-hidden scroll-mt-12"
     >
       {/* Top subtle highlight line */}
       <div className="absolute top-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent pointer-events-none" />
@@ -169,7 +169,7 @@ export default function FeaturedCars() {
                 { value: "", label: "Tutte le marche" },
                 ...uniqueBrands.map((b) => ({ value: b, label: b })),
               ]}
-              className="w-44"
+              className="flex-1 sm:w-44 sm:flex-none"
             />
 
             {(searchTerm || brandFilter || categoryFilter !== "all") && (
@@ -179,7 +179,7 @@ export default function FeaturedCars() {
                   setBrandFilter("");
                   setCategoryFilter("all");
                 }}
-                className="p-2 rounded-xl bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white transition-colors"
+                className="grid size-10 shrink-0 place-items-center rounded-xl bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white transition-colors"
                 title="Azzera filtri"
               >
                 <RotateCcw className="w-4 h-4" />

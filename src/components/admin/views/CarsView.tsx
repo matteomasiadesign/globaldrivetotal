@@ -198,7 +198,7 @@ export default function CarsView({ initialFilter }: { initialFilter?: CarFilter 
 
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <FilterTabs tabs={tabs} value={filter} onChange={setFilter} label="Filtra auto" />
-        <div className="relative">
+        <div className="relative w-full sm:w-auto">
           <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-adm-muted" />
           <input
             type="search"
@@ -206,7 +206,7 @@ export default function CarsView({ initialFilter }: { initialFilter?: CarFilter 
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Cerca marca o modello…"
             aria-label="Cerca auto"
-            className={`${inputCls} w-60 pl-9`}
+            className={`${inputCls} pl-9 sm:w-60`}
           />
         </div>
       </div>

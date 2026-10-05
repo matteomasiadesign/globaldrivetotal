@@ -27,6 +27,21 @@ export default function Navbar() {
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
+  // Menu aperto: la pagina sotto non deve scorrere, Esc lo chiude.
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setMenuOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [menuOpen]);
+
   const handleScrollToSection = (id: string) => {
     if (pathname === "/") {
       const el = document.getElementById(id);
@@ -47,13 +62,13 @@ export default function Navbar() {
       <header
         className={`fixed top-0 left-0 right-0 z-50 transition-all duration-500 ${
           isScrolled
-            ? "bg-[#060913]/90 backdrop-blur-xl border-b border-white/10 py-4 shadow-2xl"
-            : "bg-gradient-to-b from-black/80 via-black/30 to-transparent py-6"
+            ? "bg-[#060913]/90 backdrop-blur-xl border-b border-white/10 py-3 sm:py-4 shadow-2xl"
+            : "bg-gradient-to-b from-black/80 via-black/30 to-transparent py-4 sm:py-6"
         }`}
       >
-        <div className="max-w-7xl mx-auto px-6 sm:px-8 lg:px-12 flex items-center justify-between">
+        <div className="max-w-7xl mx-auto px-4 sm:px-8 lg:px-12 flex items-center justify-between gap-3">
           {/* Logo Originale Awwwards Style */}
-          <Link href="/" className="group flex items-center gap-3">
+          <Link href="/" className="group flex min-w-0 items-center gap-3">
             <div className="relative w-9 h-9 flex-shrink-0 transition-transform duration-300 group-hover:scale-105">
               <Image
                 src="/logo.webp"
@@ -141,8 +156,9 @@ export default function Navbar() {
 
             <button
               onClick={() => setMenuOpen(!menuOpen)}
-              className="p-2.5 rounded-full bg-white/5 hover:bg-white/10 text-white border border-white/10 transition-all hover:border-white/20"
-              aria-label="Menu"
+              className="grid size-11 place-items-center rounded-full bg-white/5 hover:bg-white/10 text-white border border-white/10 transition-all hover:border-white/20"
+              aria-label={menuOpen ? "Chiudi menu" : "Apri menu"}
+              aria-expanded={menuOpen}
             >
               {menuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
             </button>
@@ -152,27 +168,32 @@ export default function Navbar() {
 
       {/* Minimal Fullscreen Slide-out Menu */}
       {menuOpen && (
-        <div className="fixed inset-0 z-40 bg-[#060913]/95 backdrop-blur-2xl flex flex-col justify-between p-8 sm:p-16 pt-24 sm:pt-28 animate-in fade-in duration-300">
+        <div className="fixed inset-0 z-40 overflow-y-auto overscroll-contain bg-[#060913]/95 backdrop-blur-2xl flex flex-col justify-between gap-8 px-6 pb-[max(2rem,env(safe-area-inset-bottom))] sm:p-16 pt-24 sm:pt-28 animate-in fade-in duration-300">
           <div className="max-w-xl mx-auto w-full space-y-6 text-center my-auto">
             <p className="text-[11px] uppercase tracking-[0.3em] text-blue-400 font-bold">
               Menu Navigazione
             </p>
             <div className="space-y-4">
-              <button
-                onClick={() => {
-                  setMenuOpen(false);
-                  handleScrollToSection("catalogo");
-                }}
-                className="block w-full text-2xl sm:text-4xl font-extrabold text-white hover:text-blue-400 transition-colors"
+              <Link
+                href="/catalogo"
+                onClick={() => setMenuOpen(false)}
+                className="block w-full py-1 text-2xl sm:text-4xl font-extrabold text-white hover:text-blue-400 transition-colors"
               >
-                Veicoli
-              </button>
+                Catalogo
+              </Link>
+              <Link
+                href="/servizi"
+                onClick={() => setMenuOpen(false)}
+                className="block w-full py-1 text-2xl sm:text-4xl font-extrabold text-white hover:text-blue-400 transition-colors"
+              >
+                Servizi
+              </Link>
               <button
                 onClick={() => {
                   setMenuOpen(false);
                   handleScrollToSection("showroom");
                 }}
-                className="block w-full text-2xl sm:text-4xl font-extrabold text-white hover:text-blue-400 transition-colors"
+                className="block w-full py-1 text-2xl sm:text-4xl font-extrabold text-white hover:text-blue-400 transition-colors"
               >
                 Chi siamo
               </button>
@@ -181,7 +202,7 @@ export default function Navbar() {
                   setMenuOpen(false);
                   handleScrollToSection("contatti");
                 }}
-                className="block w-full text-2xl sm:text-4xl font-extrabold text-white hover:text-blue-400 transition-colors"
+                className="block w-full py-1 text-2xl sm:text-4xl font-extrabold text-white hover:text-blue-400 transition-colors"
               >
                 Parla con noi
               </button>

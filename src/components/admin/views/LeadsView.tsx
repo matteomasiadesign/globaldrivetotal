@@ -73,8 +73,8 @@ export default function LeadsView({ initialTab }: { initialTab?: LeadTab }) {
 
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <FilterTabs tabs={tabs} value={tab} onChange={setTab} label="Stato richieste" />
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="relative">
+        <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
+          <div className="relative w-full sm:w-auto">
             <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-adm-muted" />
             <input
               type="search"
@@ -82,14 +82,14 @@ export default function LeadsView({ initialTab }: { initialTab?: LeadTab }) {
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Cerca nome, telefono, auto…"
               aria-label="Cerca richieste"
-              className={`${inputCls} w-60 pl-9`}
+              className={`${inputCls} pl-9 sm:w-60`}
             />
           </div>
           <select
             value={type}
             onChange={(e) => setType(e.target.value as LeadType | "all")}
             aria-label="Filtra per tipo"
-            className={`${inputCls} w-auto`}
+            className={`${inputCls} sm:w-auto`}
           >
             <option value="all">Tutti i tipi</option>
             {(Object.keys(LEAD_TYPE_LABEL) as LeadType[]).map((t) => (
