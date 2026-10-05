@@ -1,0 +1,179 @@
+@import "tailwindcss";
+
+:root {
+  --background: #060913;
+  --foreground: #f8fafc;
+  --card: #0c1222;
+  --card-foreground: #f8fafc;
+  --primary: #0066ff;
+  --primary-glow: rgba(0, 102, 255, 0.4);
+  --accent-cyan: #38bdf8;
+  --border-glass: rgba(255, 255, 255, 0.08);
+}
+
+/* Palette dell'area admin: superfici piatte, niente vetro né bagliori. */
+@theme {
+  --color-adm-bg: #070b16;
+  --color-adm-surface: #0d1324;
+  --color-adm-raised: #141c33;
+  --color-adm-line: rgb(255 255 255 / 0.08);
+  --color-adm-muted: #8a94ad;
+}
+
+@keyframes adm-slide-in {
+  from {
+    transform: translateX(28px);
+    opacity: 0;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+
+@keyframes adm-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes adm-rise {
+  from {
+    transform: translateY(8px);
+    opacity: 0;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+
+.adm-slide-in {
+  animation: adm-slide-in 0.2s ease-out;
+}
+
+.adm-fade-in {
+  animation: adm-fade-in 0.15s ease-out;
+}
+
+.adm-rise {
+  animation: adm-rise 0.18s ease-out;
+}
+
+.no-scrollbar {
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* Marquee dei marchi in home */
+@keyframes brand-marquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+.brand-marquee-mask {
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent);
+  mask-image: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent);
+}
+
+.brand-marquee-track {
+  display: flex;
+  width: max-content;
+  animation: brand-marquee 70s linear infinite;
+}
+
+.brand-marquee-track:hover {
+  animation-play-state: paused;
+}
+
+.brand-marquee-list {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .adm-slide-in,
+  .adm-fade-in,
+  .adm-rise {
+    animation: none;
+  }
+
+  .brand-marquee-track {
+    animation: none;
+  }
+}
+
+html {
+  scroll-behavior: smooth;
+  color-scheme: dark;
+}
+
+body {
+  background-color: var(--background);
+  color: var(--foreground);
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  overflow-x: hidden;
+  selection-background-color: #0066ff;
+  selection-color: #ffffff;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  text-wrap: balance;
+}
+
+p {
+  text-wrap: pretty;
+}
+
+/* Custom modern scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+}
+::-webkit-scrollbar-track {
+  background: #060913;
+}
+::-webkit-scrollbar-thumb {
+  background: #1e293b;
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #0066ff;
+}
+
+/* Glassmorphism helpers */
+.glass-panel {
+  background: rgba(12, 18, 34, 0.75);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.glass-panel-light {
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.glow-blue {
+  box-shadow: 0 0 35px -5px rgba(0, 102, 255, 0.45);
+}
+
+.glow-blue-sm {
+  box-shadow: 0 0 20px -3px rgba(0, 102, 255, 0.35);
+}
+
+.glow-text {
+  text-shadow: 0 0 25px rgba(56, 189, 248, 0.5);
+}
