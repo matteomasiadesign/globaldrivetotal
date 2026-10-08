@@ -10,6 +10,9 @@ import { Note } from "../ui/Data";
 
 // Percentuali mostrate come numeri interi/decimali ("22") ma salvate come frazioni (0.22).
 const perc = (frazione: number) => Math.round(frazione * 10000) / 100;
+// Dal campo (0–100) alla frazione salvata: un valore fuori scala o vuoto torna al predefinito.
+const frazione = (n: number | null, predefinito: number) =>
+  n == null || n < 0 || n > 100 ? predefinito : n / 100;
 
 export default function ImpostazioniView() {
   const { impostazioni: s, updateImpostazioni } = useGestionale();
@@ -25,16 +28,16 @@ export default function ImpostazioniView() {
               <NumberField value={s.annoGestione} onCommit={(n) => updateImpostazioni({ annoGestione: n || new Date().getFullYear() })} />
             </Field>
             <Field label="Aliquota IVA ordinaria (%)">
-              <NumberField step="0.1" value={perc(s.aliquotaIva)} onCommit={(n) => updateImpostazioni({ aliquotaIva: (n ?? 22) / 100 })} />
+              <NumberField step="0.1" value={perc(s.aliquotaIva)} onCommit={(n) => updateImpostazioni({ aliquotaIva: frazione(n, 0.22) })} />
             </Field>
             <Field label="Maggiorazione liquidazione trimestrale (%)">
-              <NumberField step="0.1" value={perc(s.maggiorazioneTrimestrale)} onCommit={(n) => updateImpostazioni({ maggiorazioneTrimestrale: (n ?? 1) / 100 })} />
+              <NumberField step="0.1" value={perc(s.maggiorazioneTrimestrale)} onCommit={(n) => updateImpostazioni({ maggiorazioneTrimestrale: frazione(n, 0.01) })} />
             </Field>
             <Field label="Commissione predefinita del conto vendita (%)">
-              <NumberField step="0.1" value={perc(s.commissionePredefinita)} onCommit={(n) => updateImpostazioni({ commissionePredefinita: (n ?? 7) / 100 })} />
+              <NumberField step="0.1" value={perc(s.commissionePredefinita)} onCommit={(n) => updateImpostazioni({ commissionePredefinita: frazione(n, 0.07) })} />
             </Field>
             <Field label="ROI obiettivo (%)" hint="Sotto questa soglia il ROI di un'auto si evidenzia.">
-              <NumberField step="0.1" value={perc(s.sogliaRoi)} onCommit={(n) => updateImpostazioni({ sogliaRoi: (n ?? 15) / 100 })} />
+              <NumberField step="0.1" value={perc(s.sogliaRoi)} onCommit={(n) => updateImpostazioni({ sogliaRoi: frazione(n, 0.15) })} />
             </Field>
             <Field label="Giorni di stock prima dell'avviso" hint="Oltre questa soglia l'auto compare tra le cose da sistemare.">
               <NumberField value={s.sogliaGiorniStock} onCommit={(n) => updateImpostazioni({ sogliaGiorniStock: n || 60 })} />

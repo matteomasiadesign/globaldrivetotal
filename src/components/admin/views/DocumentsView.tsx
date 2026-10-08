@@ -14,7 +14,6 @@ import {
   Trash2,
 } from "lucide-react";
 import { useAdmin } from "@/context/AdminContext";
-import { useCars } from "@/context/CarContext";
 import { useGestionale } from "@/context/GestionaleContext";
 import { REQUIRED_DOCUMENT_CATEGORIES, eur } from "@/lib/admin/constants";
 import { getDossier } from "@/lib/admin/documents";
@@ -22,26 +21,50 @@ import { formatShortDate } from "@/lib/admin/dates";
 import type { DocumentCategory, VehicleDocument } from "@/types/admin";
 import type { Car } from "@/types/car";
 import { useEditors } from "../AdminEditors";
+import { useDossierEntries } from "../useDossierEntries";
 import DocumentLinkDrawer from "../DocumentLinkDrawer";
+import { getVehicleFileUrl } from "@/lib/storage/vehicleFiles";
 import { EmptyState, PageHeader, Panel, Pill } from "../ui/Layout";
 import RowMenu from "../ui/RowMenu";
 import { btnPrimary, btnSecondary, focusRing, inputCls } from "../ui/styles";
+import { useToast } from "../ui/Toast";
 
 const docText = (d: VehicleDocument) =>
   `${d.title} ${d.category} ${d.notes ?? ""}`.toLowerCase();
 
+const SOURCE_LABEL: Record<VehicleDocument["source"], string> = {
+  google_drive: "Google Drive",
+  upload: "File caricato",
+  local_pdf: "Generato qui",
+  generated_html: "Generato qui",
+};
+
 function DocRow({ doc, highlight = false }: { doc: VehicleDocument; highlight?: boolean }) {
   const { deleteDocument } = useAdmin();
+  const toast = useToast();
+
+  async function openFile() {
+    if (!doc.storagePath) return;
+    const url = await getVehicleFileUrl(doc.storagePath).catch(() => null);
+    if (url) window.open(url, "_blank", "noopener");
+    else toast("Non trovo il file: potrebbe essere stato caricato da un altro browser");
+  }
   return (
     <div className={`flex items-center gap-3 px-4 py-3 ${highlight ? "bg-blue-500/10" : ""}`}>
       <div className="min-w-0 flex-1">
         <p className="truncate font-medium text-white">{doc.title}</p>
         <p className="truncate text-sm text-adm-muted">
-          {doc.source === "google_drive" ? "Google Drive" : "Generato qui"} ·{" "}
-          {formatShortDate(doc.dateAdded)}
+          {SOURCE_LABEL[doc.source]}
+          {doc.fileSize ? ` · ${doc.fileSize}` : ""} · {formatShortDate(doc.dateAdded)}
           {doc.notes ? ` · ${doc.notes}` : ""}
         </p>
       </div>
+      {doc.storagePath && (
+        <button type="button" onClick={openFile} className={btnSecondary}>
+          Apri
+          <ExternalLink className="size-3.5" />
+        </button>
+      )}
       {doc.fileUrl && (
         <a
           href={doc.fileUrl}
@@ -94,7 +117,8 @@ function Dossier({
             {car.brand} {car.model}
           </h2>
           <p className="text-sm text-adm-muted">
-            {car.version} · {car.year} · {eur(car.price)}
+            {[car.version, car.year > 0 && car.year, car.price > 0 && eur(car.price)].filter(Boolean).join(" · ") ||
+              "Auto fuori catalogo"}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -190,7 +214,7 @@ export default function DocumentsView({
   initialCarId?: string;
   onlyIncomplete?: boolean;
 }) {
-  const { cars } = useCars();
+  const { entries: cars, isFuoriCatalogo } = useDossierEntries();
   const { documents } = useAdmin();
   const { schedaDellAuto } = useGestionale();
   const { openContratto } = useEditors();
@@ -213,9 +237,9 @@ export default function DocumentsView({
         `${c.brand} ${c.model} ${c.version}`.toLowerCase().includes(q) ||
         docHits(c.id).length > 0
     )
-    .filter((c) => !onlyIncomplete || !getDossier(c.id, documents).complete);
+    .filter((c) => !onlyIncomplete || (c.status !== "Venduta" && !getDossier(c.id, documents).complete));
 
-  const incompleteCount = cars.filter((c) => !getDossier(c.id, documents).complete).length;
+  const incompleteCount = cars.filter((c) => c.status !== "Venduta" && !getDossier(c.id, documents).complete).length;
 
   // Su schermi larghi si vede sempre un dossier (il primo, se non ne hai scelto uno);
   // su telefono si parte dall'elenco e si apre il dossier con un tocco.
@@ -328,7 +352,9 @@ export default function DocumentsView({
               car={activeCar}
               query={q}
               onLink={(category) => setLinking({ carId: activeCar.id, category })}
-              onContract={() => openContratto(schedaDellAuto(activeCar).id)}
+              onContract={() =>
+                openContratto(isFuoriCatalogo(activeCar.id) ? activeCar.id : schedaDellAuto(activeCar).id)
+              }
             />
           ) : (
             <EmptyState icon={Cloud} title="Scegli un'auto per vedere il suo dossier" />

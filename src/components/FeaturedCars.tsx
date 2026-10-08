@@ -40,7 +40,10 @@ export default function FeaturedCars() {
   const [categoryFilter, setCategoryFilter] = useState("all");
 
   const publicCars = useMemo(
-    () => cars.filter((c) => !c.hidden && c.status === "Disponibile"),
+    () =>
+      cars
+        .filter((c) => !c.hidden && c.status === "Disponibile")
+        .sort((a, b) => Number(Boolean(b.featured)) - Number(Boolean(a.featured))),
     [cars],
   );
   const uniqueBrands = Array.from(new Set(publicCars.map((c) => c.brand)));
@@ -48,7 +51,6 @@ export default function FeaturedCars() {
   // Filtered cars for Home section
   const filteredCars = useMemo(() => {
     return publicCars.filter((car) => {
-      // Prioritize featured cars if no search is active
       const matchesSearch =
         searchTerm === "" ||
         `${car.brand} ${car.model} ${car.version}`

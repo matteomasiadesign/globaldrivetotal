@@ -3,6 +3,7 @@
 import React, { useState } from "react";
 import { CalendarRange, Plus, Trash2 } from "lucide-react";
 import { useGestionale } from "@/context/GestionaleContext";
+import { formatDate } from "@/lib/admin/dates";
 import { euro } from "@/lib/gestionale/calc";
 import {
   STATI_PRENOTAZIONE,
@@ -26,6 +27,7 @@ function PrenotazioneDrawer({ onClose }: { onClose: () => void }) {
   const [f, setF] = useState({
     veicoloId: "",
     contattoId: "",
+    clienteNomeLibero: "",
     dataInizio: "",
     dataFine: "",
     tariffa: "",
@@ -48,6 +50,7 @@ function PrenotazioneDrawer({ onClose }: { onClose: () => void }) {
     const esito = addPrenotazione({
       veicoloId: f.veicoloId,
       contattoId: f.contattoId || null,
+      clienteNomeLibero: f.contattoId ? "" : f.clienteNomeLibero.trim(),
       dataInizio: f.dataInizio,
       dataFine: f.dataFine,
       tariffaApplicata: tariffa,
@@ -76,14 +79,22 @@ function PrenotazioneDrawer({ onClose }: { onClose: () => void }) {
             onChange={(v) => set("veicoloId", v)}
           />
         </Field>
-        <Field label="Cliente" className="sm:col-span-2" hint="Il cliente deve essere in Contatti, con patente e documento.">
+        <Field label="Cliente" className="sm:col-span-2" hint="Patente e documento si inseriscono nella scheda del contatto.">
           <SelectField
             value={f.contattoId}
-            blank="— nessuno —"
+            blank="— non ancora in anagrafica —"
             options={contatti.filter((c) => c.tipo !== "Fornitore").map((c) => ({ value: c.id, label: c.nome }))}
             onChange={(v) => set("contattoId", v)}
           />
         </Field>
+        {!f.contattoId && (
+          <Field label="Nome del cliente" className="sm:col-span-2">
+            <input placeholder="Mario Rossi" value={f.clienteNomeLibero} onChange={(e) => set("clienteNomeLibero", e.target.value)} className={inputCls} />
+          </Field>
+        )}
+        <p className="text-xs text-adm-muted sm:col-span-2">
+          Il ritiro può essere lo stesso giorno della riconsegna di un altro cliente, oppure in un giorno successivo.
+        </p>
         <Field label="Dal">
           <input required type="date" value={f.dataInizio} onChange={(e) => set("dataInizio", e.target.value)} className={inputCls} />
         </Field>
@@ -126,7 +137,8 @@ export default function Prenotazioni() {
     const v = noleggio.veicoli.find((x) => x.id === id);
     return v ? nomeRentVeicolo(v) : "Auto eliminata";
   };
-  const nomeCliente = (id: string | null) => contatti.find((c) => c.id === id)?.nome || "Cliente non indicato";
+  const nomeCliente = (p: { contattoId: string | null; clienteNomeLibero: string }) =>
+    contatti.find((c) => c.id === p.contattoId)?.nome || p.clienteNomeLibero || "Cliente non indicato";
 
   const tabs: TabOption<StatoPrenotazione | "tutte">[] = [
     { id: "tutte", label: "Tutte", count: noleggio.prenotazioni.length },
@@ -155,7 +167,7 @@ export default function Prenotazioni() {
               <div className="min-w-0 flex-1 basis-56">
                 <span className="block truncate font-medium text-white">{nomeAuto(p.veicoloId)}</span>
                 <span className="block truncate text-sm text-adm-muted">
-                  {nomeCliente(p.contattoId)} · {p.dataInizio} → {p.dataFine} ({giorniNoleggio(p.dataInizio, p.dataFine)} gg)
+                  {nomeCliente(p)} · {formatDate(p.dataInizio)} → {formatDate(p.dataFine)} ({giorniNoleggio(p.dataInizio, p.dataFine)} gg)
                   {p.luogoRitiro ? ` · ${p.luogoRitiro}` : ""}
                 </span>
               </div>
@@ -163,7 +175,10 @@ export default function Prenotazioni() {
               <SelectField
                 value={p.stato}
                 options={STATI_PRENOTAZIONE}
-                onChange={(s) => updatePrenotazione(p.id, { stato: s })}
+                onChange={(s) => {
+                  const esito = updatePrenotazione(p.id, { stato: s });
+                  if (!esito.ok) toast(esito.errore);
+                }}
                 aria-label={`Stato della prenotazione di ${nomeAuto(p.veicoloId)}`}
                 className={`${inputCls} sm:w-36`}
               />

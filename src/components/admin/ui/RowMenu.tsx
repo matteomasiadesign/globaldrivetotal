@@ -36,6 +36,26 @@ export default function RowMenu({
   const [open, setOpen] = useState(false);
   const [armed, setArmed] = useState<number | null>(null);
   const ref = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  // Aperto da tastiera o da mouse, il focus va sulla prima voce.
+  useEffect(() => {
+    if (open) menuRef.current?.querySelector<HTMLElement>('[role="menuitem"]')?.focus();
+  }, [open]);
+
+  function onMenuKey(e: React.KeyboardEvent<HTMLDivElement>) {
+    const voci = Array.from(e.currentTarget.querySelectorAll<HTMLElement>('[role="menuitem"]'));
+    const i = voci.indexOf(document.activeElement as HTMLElement);
+    const vai = (n: number) => {
+      e.preventDefault();
+      voci[(n + voci.length) % voci.length]?.focus();
+    };
+    if (e.key === "ArrowDown") vai(i + 1);
+    else if (e.key === "ArrowUp") vai(i - 1);
+    else if (e.key === "Home") vai(0);
+    else if (e.key === "End") vai(voci.length - 1);
+  }
 
   useEffect(() => {
     if (!open) return;
@@ -43,7 +63,10 @@ export default function RowMenu({
       if (!ref.current?.contains(e.target as Node)) close();
     };
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") close();
+      if (e.key === "Escape") {
+        close();
+        triggerRef.current?.focus();
+      }
     };
     document.addEventListener("pointerdown", onPointer);
     document.addEventListener("keydown", onKey);
@@ -70,6 +93,7 @@ export default function RowMenu({
   return (
     <div ref={ref} className="relative">
       <button
+        ref={triggerRef}
         type="button"
         aria-label={label}
         title={label}
@@ -83,6 +107,8 @@ export default function RowMenu({
 
       {open && (
         <div
+          ref={menuRef}
+          onKeyDown={onMenuKey}
           role="menu"
           className={`adm-rise absolute z-40 min-w-52 rounded-xl border border-adm-line bg-adm-raised p-1 shadow-2xl ${
             align === "right" ? "right-0" : "left-0"
@@ -96,6 +122,7 @@ export default function RowMenu({
                 key={item.label}
                 type="button"
                 role="menuitem"
+                tabIndex={-1}
                 onClick={() => select(item, i)}
                 className={`flex w-full cursor-pointer items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm transition-colors ${
                   isArmed

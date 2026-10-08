@@ -57,8 +57,9 @@ export default function LeadRow({
   );
 
   // Chi scrive va in anagrafica con un clic, a meno che il numero ci sia già.
-  const cifre = (p: string) => p.replace(/D/g, "");
-  const salvaInAnagrafica: MenuItem[] = contatti.some((c) => cifre(c.telefono) === cifre(lead.phone))
+  const cifre = (p: string) => p.replace(/\D/g, "");
+  const giaInAnagrafica = contatti.some((c) => cifre(lead.phone) !== "" && cifre(c.telefono) === cifre(lead.phone));
+  const salvaInAnagrafica: MenuItem[] = giaInAnagrafica
     ? []
     : [
         {
@@ -66,6 +67,7 @@ export default function LeadRow({
           icon: UserPlus,
           onSelect: () =>
             openContatto({
+              leadId: lead.id,
               prefill: {
                 nome: lead.name,
                 telefono: lead.phone,

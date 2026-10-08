@@ -38,6 +38,7 @@ import type {
   Contatto,
   Impostazioni,
   Movimento,
+  Pagamento,
   TabellaStorico,
   Veicolo,
   VoceStorico,
@@ -66,16 +67,28 @@ interface GestionaleContextValue {
   addVeicolo: (data?: NuovoVeicolo) => Veicolo;
   updateVeicolo: (id: string, patch: Partial<Omit<Veicolo, "id">>) => void;
   deleteVeicolo: (id: string) => void;
-  /** La scheda economica dell'auto del catalogo, creandola se non esiste. */
-  schedaDellAuto: (car: Car) => Veicolo;
+  /** La scheda economica dell'auto del catalogo, creandola (con i dati d'acquisto) se non esiste. */
+  schedaDellAuto: (car: Car, extra?: NuovoVeicolo) => Veicolo;
   /** Cambia lo stato dell'auto sul sito e, di conseguenza, quello della scheda. */
   cambiaStatoCatalogo: (carId: string, status: CarStatus) => void;
+  /** Mostra o nasconde l'auto sul sito e porta la scheda nello stato coerente. */
+  impostaVisibilita: (carId: string, hidden: boolean) => void;
   /** L'auto è stata eliminata dal catalogo: la scheda resta, archiviata. */
   scollegaAuto: (carId: string) => void;
-  /** Contratto generato: segna l'auto venduta, aggiorna il catalogo e l'anagrafica. */
+  /**
+   * Contratto generato: segna l'auto venduta, aggiorna il catalogo, collega il cliente
+   * (anagrafica) all'auto e registra l'incasso atteso tra i movimenti.
+   */
   registraVendita: (
     veicoloId: string,
-    vendita: { prezzoVendita: number; dataVendita: string; acquirente: DatiAcquirente }
+    vendita: {
+      prezzoVendita: number;
+      dataVendita: string;
+      acquirente: DatiAcquirente;
+      /** Contatto scelto dall'anagrafica, se c'è. */
+      contattoId?: string | null;
+      strumentoPagamento?: string;
+    }
   ) => void;
 
   addMovimento: (data?: NuovoMovimento) => Movimento;
@@ -92,7 +105,7 @@ interface GestionaleContextValue {
   updateRentVeicolo: (id: string, patch: Partial<Omit<RentVeicolo, "id">>) => void;
   deleteRentVeicolo: (id: string) => void;
   addPrenotazione: (data: Omit<RentPrenotazione, "id" | "stato" | "note">) => Esito;
-  updatePrenotazione: (id: string, patch: Partial<Omit<RentPrenotazione, "id">>) => void;
+  updatePrenotazione: (id: string, patch: Partial<Omit<RentPrenotazione, "id">>) => Esito;
   deletePrenotazione: (id: string) => void;
   addTariffa: (data: Omit<RentTariffa, "id">) => void;
   updateTariffa: (id: string, patch: Partial<Omit<RentTariffa, "id">>) => void;
@@ -114,33 +127,31 @@ const MAX_STORICO = 300;
 const uid = (prefix: string) =>
   `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
 
-// Un salvataggio incompleto o di una versione vecchia non deve rompere l'admin:
-// se la forma non torna si riparte dai dati demo.
+// Un salvataggio di una versione vecchia non deve far perdere i dati: le parti mancanti
+// si riempiono con valori vuoti e i campi aggiunti dopo prendono il loro default. Si
+// riparte dai dati demo solo se il contenuto non è affatto un salvataggio del gestionale.
+const lista = <T,>(v: unknown): T[] =>
+  Array.isArray(v) ? (v.filter((x) => x && typeof x === "object") as T[]) : [];
+
 function normalizza(raw: unknown): GestionaleData | null {
   if (!raw || typeof raw !== "object") return null;
-  const d = raw as Partial<GestionaleData>;
-  const n = d.noleggio;
-  if (
-    !Array.isArray(d.veicoli) ||
-    !Array.isArray(d.movimenti) ||
-    !Array.isArray(d.contatti) ||
-    !Array.isArray(d.storico) ||
-    !n ||
-    !Array.isArray(n.veicoli) ||
-    !Array.isArray(n.prenotazioni) ||
-    !Array.isArray(n.tariffe) ||
-    !Array.isArray(n.preventivi)
-  ) {
-    return null;
-  }
+  const d = raw as Record<string, unknown>;
+  if (!Array.isArray(d.veicoli) && !Array.isArray(d.movimenti) && !Array.isArray(d.contatti)) return null;
+  const n = (d.noleggio && typeof d.noleggio === "object" ? d.noleggio : {}) as Record<string, unknown>;
+  // I parametri nuovi aggiunti ai default compaiono anche in chi ha già un salvataggio.
+  const impostazioni = { ...defaultImpostazioni, ...((d.impostazioni as Partial<Impostazioni>) ?? {}) };
   return {
-    veicoli: d.veicoli,
-    movimenti: d.movimenti,
-    contatti: d.contatti,
-    storico: d.storico,
-    noleggio: n,
-    // I parametri nuovi aggiunti ai default compaiono anche in chi ha già un salvataggio.
-    impostazioni: { ...defaultImpostazioni, ...(d.impostazioni ?? {}) },
+    impostazioni,
+    veicoli: lista<Veicolo>(d.veicoli).map((v) => ({ ...veicoloVuoto(impostazioni), ...v })),
+    movimenti: lista<Movimento>(d.movimenti).map((m) => withTotale({ ...movimentoVuoto(""), ...m })),
+    contatti: lista<Contatto>(d.contatti).map((c) => ({ ...contattoVuoto(), ...c })),
+    storico: lista<VoceStorico>(d.storico),
+    noleggio: {
+      veicoli: lista<RentVeicolo>(n.veicoli),
+      prenotazioni: lista<RentPrenotazione>(n.prenotazioni).map((p) => ({ ...p, clienteNomeLibero: p.clienteNomeLibero ?? "" })),
+      tariffe: lista<RentTariffa>(n.tariffe),
+      preventivi: lista<RentPreventivo>(n.preventivi),
+    },
   };
 }
 
@@ -190,9 +201,43 @@ const withTotale = <T extends { imponibile: number; iva: number }>(m: T) => ({
   totale: (Number(m.imponibile) || 0) + (Number(m.iva) || 0),
 });
 
+// L'acquisto di un'auto è un movimento d'uscita "Acquisto veicolo" collegato alla scheda e al
+// fornitore. Lo crea e lo tiene allineato il prezzo d'acquisto della scheda, che resta l'unica
+// fonte del dato (i costi diretti della scheda escludono questa categoria per non contarlo due volte).
+function conAcquisto(d: GestionaleData, v: Veicolo, oggi: string): GestionaleData {
+  if (!(v.prezzoAcquisto > 0)) return d;
+  const fornitore = d.contatti.find((c) => c.id === v.fornitoreId);
+  const esistente = d.movimenti.find((m) => m.autoId === v.id && m.categoria === "Acquisto veicolo");
+  const campi = {
+    data: v.dataAcquisto || esistente?.data || oggi,
+    contattoId: v.fornitoreId,
+    fornitoreCliente: fornitore?.nome ?? esistente?.fornitoreCliente ?? "",
+    imponibile: v.prezzoAcquisto,
+  };
+  if (esistente) {
+    return { ...d, movimenti: d.movimenti.map((m) => (m.id === esistente.id ? withTotale({ ...m, ...campi }) : m)) };
+  }
+  const nuovo: Movimento = withTotale({
+    ...movimentoVuoto(oggi),
+    ...campi,
+    id: uid("mov"),
+    autoId: v.id,
+    tipo: "Uscita" as const,
+    categoria: "Acquisto veicolo",
+    naturaCosto: "Variabile diretto auto" as const,
+    descrizione: `Acquisto ${nomeVeicolo(v)}`,
+  });
+  return { ...d, movimenti: [nuovo, ...d.movimenti] };
+}
+
+const pagamentoDa = (strumento: string): Pagamento =>
+  strumento === "Bonifico bancario" ? "Bonifico" : strumento === "Contanti" ? "CASH" : "CONTO";
+
+const soloCifre = (p: string) => p.replace(/\D/g, "");
+
 export function GestionaleProvider({ children }: { children: React.ReactNode }) {
-  const { user, today } = useAdmin();
-  const { updateCar } = useCars();
+  const { user, today, leads, updateLead } = useAdmin();
+  const { cars, updateCar } = useCars();
   const utente = user?.name || user?.email || "Admin";
 
   const [ready, setReady] = useState(false);
@@ -209,6 +254,8 @@ export function GestionaleProvider({ children }: { children: React.ReactNode }) 
   useEffect(() => {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
+      // Copia di sicurezza di ciò che c'era prima di questa sessione, per non perderlo mai in silenzio.
+      if (raw) localStorage.setItem(STORAGE_KEY + "_backup", raw);
       const stored = raw ? normalizza(JSON.parse(raw)) : null;
       if (stored) setData(stored);
     } catch (e) {
@@ -242,8 +289,12 @@ export function GestionaleProvider({ children }: { children: React.ReactNode }) 
   /** Riflette sul sito lo stato di una scheda collegata a un'auto del catalogo. */
   const sincronizzaCatalogo = useCallback(
     (carId: string, stato: Veicolo["stato"]) => {
-      const { status, hidden } = catalogoDaStato(stato);
-      updateCar(carId, hidden === undefined ? { status } : { status, hidden, ...(hidden && { featured: false }) });
+      const { status, hidden, featured } = catalogoDaStato(stato);
+      updateCar(carId, {
+        status,
+        ...(hidden !== undefined && { hidden }),
+        ...(featured === false && { featured: false }),
+      });
     },
     [updateCar]
   );
@@ -258,32 +309,47 @@ export function GestionaleProvider({ children }: { children: React.ReactNode }) 
         id: uid("veh"),
       };
       edit((d) => ({
-        data: { ...d, veicoli: [item, ...d.veicoli] },
+        data: conAcquisto({ ...d, veicoli: [item, ...d.veicoli] }, item, today),
         log: { tabella: "auto", azione: "Creato", oggetto: nomeVeicolo(item) },
       }));
       return item;
     },
-    [edit]
+    [edit, today]
   );
 
   const updateVeicolo = useCallback<GestionaleContextValue["updateVeicolo"]>(
     (id, patch) => {
       const current = dataRef.current.veicoli.find((v) => v.id === id);
-      if (!current || !hasChanges(current, patch)) return;
-      edit((d) => ({
-        data: { ...d, veicoli: d.veicoli.map((v) => (v.id === id ? { ...v, ...patch } : v)) },
-        log: {
-          tabella: "auto",
-          azione: "Modificato",
-          oggetto: nomeVeicolo({ ...current, ...patch }),
-          dettaglio: describeChanges(current, patch),
-        },
-      }));
-      if (current.carId && patch.stato && patch.stato !== current.stato) {
-        sincronizzaCatalogo(current.carId, patch.stato);
+      if (!current) return;
+      // Venduta senza passare dal contratto: la data di vendita serve a IVA e analisi.
+      // Se la vendita viene annullata, la data si toglie.
+      const effettivo = { ...patch };
+      if (patch.stato === "Venduta" && current.stato !== "Venduta" && !current.dataVendita && patch.dataVendita === undefined) {
+        effettivo.dataVendita = today;
+      }
+      if (patch.stato && patch.stato !== "Venduta" && current.stato === "Venduta" && patch.dataVendita === undefined) {
+        effettivo.dataVendita = "";
+      }
+      if (!hasChanges(current, effettivo)) return;
+      const toccaAcquisto = "prezzoAcquisto" in effettivo || "fornitoreId" in effettivo || "dataAcquisto" in effettivo;
+      edit((d) => {
+        const aggiornato = { ...current, ...effettivo };
+        const base = { ...d, veicoli: d.veicoli.map((v) => (v.id === id ? aggiornato : v)) };
+        return {
+          data: toccaAcquisto ? conAcquisto(base, aggiornato, today) : base,
+          log: {
+            tabella: "auto",
+            azione: "Modificato",
+            oggetto: nomeVeicolo(aggiornato),
+            dettaglio: describeChanges(current, effettivo),
+          },
+        };
+      });
+      if (current.carId && effettivo.stato && effettivo.stato !== current.stato) {
+        sincronizzaCatalogo(current.carId, effettivo.stato);
       }
     },
-    [edit, sincronizzaCatalogo]
+    [edit, sincronizzaCatalogo, today]
   );
 
   const deleteVeicolo = useCallback<GestionaleContextValue["deleteVeicolo"]>(
@@ -303,7 +369,7 @@ export function GestionaleProvider({ children }: { children: React.ReactNode }) 
   );
 
   const schedaDellAuto = useCallback<GestionaleContextValue["schedaDellAuto"]>(
-    (car) => {
+    (car, extra = {}) => {
       const esistente = dataRef.current.veicoli.find((v) => v.carId === car.id);
       if (esistente) return esistente;
       // Un'auto nascosta dal catalogo non è ancora pronta alla vendita.
@@ -316,6 +382,7 @@ export function GestionaleProvider({ children }: { children: React.ReactNode }) 
         chilometraggio: car.mileage,
         alimentazione: car.fuel,
         stato,
+        ...extra,
       });
     },
     [addVeicolo]
@@ -326,20 +393,29 @@ export function GestionaleProvider({ children }: { children: React.ReactNode }) 
       updateCar(carId, { status });
       const scheda = dataRef.current.veicoli.find((v) => v.carId === carId);
       if (!scheda) return;
-      const stato = statoDaCatalogo(status);
-      if (stato === scheda.stato) return;
-      // Qui lo stato parte già dal catalogo: non serve risincronizzarlo.
-      edit((d) => ({
-        data: { ...d, veicoli: d.veicoli.map((v) => (v.id === scheda.id ? { ...v, stato } : v)) },
-        log: {
-          tabella: "auto",
-          azione: "Modificato",
-          oggetto: nomeVeicolo(scheda),
-          dettaglio: `stato: ${scheda.stato} → ${stato}`,
-        },
-      }));
+      // Se la scheda già corrisponde allo stato scelto non si tocca: un'auto "In preparazione"
+      // resta tale anche se sul sito il suo stato è "Disponibile".
+      if (catalogoDaStato(scheda.stato).status === status) return;
+      updateVeicolo(scheda.id, { stato: statoDaCatalogo(status) });
     },
-    [edit, updateCar]
+    [updateCar, updateVeicolo]
+  );
+
+  const impostaVisibilita = useCallback<GestionaleContextValue["impostaVisibilita"]>(
+    (carId, hidden) => {
+      updateCar(carId, hidden ? { hidden: true, featured: false } : { hidden: false });
+      const scheda = dataRef.current.veicoli.find((v) => v.carId === carId);
+      if (!scheda) return;
+      let stato = scheda.stato;
+      if (hidden && (stato === "In vendita" || stato === "Prenotata")) {
+        stato = "In preparazione";
+      } else if (!hidden && (stato === "In valutazione" || stato === "Acquistata" || stato === "In preparazione")) {
+        const car = cars.find((c) => c.id === carId);
+        stato = car ? statoDaCatalogo(car.status) : "In vendita";
+      }
+      if (stato !== scheda.stato) updateVeicolo(scheda.id, { stato });
+    },
+    [cars, updateCar, updateVeicolo]
   );
 
   const scollegaAuto = useCallback<GestionaleContextValue["scollegaAuto"]>(
@@ -362,41 +438,76 @@ export function GestionaleProvider({ children }: { children: React.ReactNode }) 
   );
 
   const registraVendita = useCallback<GestionaleContextValue["registraVendita"]>(
-    (veicoloId, { prezzoVendita, dataVendita, acquirente }) => {
+    (veicoloId, { prezzoVendita, dataVendita, acquirente, contattoId = null, strumentoPagamento = "" }) => {
       const scheda = dataRef.current.veicoli.find((v) => v.id === veicoloId);
       if (!scheda) return;
       const nome = acquirente.nome.trim();
-      const inAnagrafica = (c: Contatto) => c.nome.trim().toLowerCase() === nome.toLowerCase();
 
       edit((d) => {
-        // Il cliente va in anagrafica; se c'è già si completano solo i dati che mancano.
+        const dati = {
+          telefono: acquirente.telefono,
+          email: acquirente.email,
+          codiceFiscale: acquirente.codiceFiscale,
+          residenza: acquirente.residenza,
+          nascitaSede: acquirente.nascitaSede,
+        };
+        // Il cliente: quello scelto in anagrafica, o chi ha lo stesso nome, o uno nuovo.
+        const trovato =
+          d.contatti.find((c) => c.id === contattoId) ??
+          (nome ? d.contatti.find((c) => c.nome.trim().toLowerCase() === nome.toLowerCase()) : undefined);
         let contatti = d.contatti;
-        if (nome) {
-          const dati = {
-            telefono: acquirente.telefono,
-            email: acquirente.email,
-            codiceFiscale: acquirente.codiceFiscale,
-            residenza: acquirente.residenza,
-            nascitaSede: acquirente.nascitaSede,
-          };
-          contatti = d.contatti.some(inAnagrafica)
-            ? d.contatti.map((c) => {
-                if (!inAnagrafica(c)) return c;
-                const completato = { ...c };
-                (Object.keys(dati) as (keyof typeof dati)[]).forEach((k) => {
-                  if (dati[k]) completato[k] = dati[k];
-                });
-                return completato;
-              })
-            : [{ ...contattoVuoto(), id: uid("con"), nome, ...dati }, ...d.contatti];
+        let acquirenteId: string | null = trovato?.id ?? null;
+        if (trovato) {
+          // Si completano solo i dati che mancano; un fornitore che compra diventa "Entrambi".
+          contatti = d.contatti.map((c) => {
+            if (c.id !== trovato.id) return c;
+            const completato: Contatto = { ...c, tipo: c.tipo === "Fornitore" ? "Entrambi" : c.tipo };
+            (Object.keys(dati) as (keyof typeof dati)[]).forEach((k) => {
+              if (dati[k] && !c[k]) completato[k] = dati[k];
+            });
+            return completato;
+          });
+        } else if (nome) {
+          const nuovo: Contatto = { ...contattoVuoto(), id: uid("con"), nome, ...dati };
+          acquirenteId = nuovo.id;
+          contatti = [nuovo, ...d.contatti];
         }
+
+        // L'incasso atteso entra nei movimenti (da saldare). Nel conto vendita si incassa solo
+        // la commissione, con la sua IVA; la vendita è del proprietario.
+        const contoVendita = scheda.servizio === "Conto vendita";
+        const categoria = contoVendita ? "Intermediazione conto vendita" : "Vendita veicolo";
+        let movimenti = d.movimenti;
+        if (!d.movimenti.some((m) => m.autoId === veicoloId && m.tipo === "Entrata" && m.categoria === categoria)) {
+          const imponibile = contoVendita ? prezzoVendita * scheda.commissionePercentuale : prezzoVendita;
+          const incasso: Movimento = withTotale({
+            ...movimentoVuoto(today),
+            id: uid("mov"),
+            data: dataVendita,
+            autoId: veicoloId,
+            contattoId: acquirenteId,
+            fornitoreCliente: nome || trovato?.nome || "",
+            descrizione: `Vendita ${nomeVeicolo(scheda)}`,
+            tipo: "Entrata" as const,
+            categoria,
+            naturaCosto: "Variabile generale" as const,
+            pagamento: pagamentoDa(strumentoPagamento),
+            imponibile,
+            iva: contoVendita ? imponibile * d.impostazioni.aliquotaIva : 0,
+            statoPagamento: "Da saldare" as const,
+            numeroDocumento: scheda.numeroFattura,
+          });
+          movimenti = [incasso, ...d.movimenti];
+        }
+
         return {
           data: {
             ...d,
             contatti,
+            movimenti,
             impostazioni: { ...d.impostazioni, prossimoNumeroContratto: d.impostazioni.prossimoNumeroContratto + 1 },
             veicoli: d.veicoli.map((v) =>
-              v.id === veicoloId ? { ...v, prezzoVendita, dataVendita, stato: "Venduta" } : v
+              v.id === veicoloId ? { ...v, prezzoVendita, dataVendita, stato: "Venduta", acquirenteId } : v
             ),
           },
           log: {
@@ -408,8 +519,15 @@ export function GestionaleProvider({ children }: { children: React.ReactNode }) 
         };
       });
       if (scheda.carId) sincronizzaCatalogo(scheda.carId, "Venduta");
+      // La richiesta di chi ha comprato è chiusa.
+      const telefono = soloCifre(acquirente.telefono);
+      if (telefono) {
+        leads
+          .filter((l) => (l.status === "nuovo" || l.status === "in_gestione") && soloCifre(l.phone) === telefono)
+          .forEach((l) => updateLead(l.id, { status: "completato" }));
+      }
     },
-    [edit, sincronizzaCatalogo]
+    [edit, sincronizzaCatalogo, today, leads, updateLead]
   );
 
   // --- Movimenti -------------------------------------------------------------
@@ -494,10 +612,18 @@ export function GestionaleProvider({ children }: { children: React.ReactNode }) 
         data: {
           ...d,
           contatti: d.contatti.filter((c) => c.id !== id),
-          // Prenotazioni e preventivi restano, senza il collegamento al cliente.
+          // Auto, movimenti, prenotazioni e preventivi restano, con il nome in chiaro al posto del collegamento.
+          veicoli: d.veicoli.map((v) => ({
+            ...v,
+            fornitoreId: v.fornitoreId === id ? null : v.fornitoreId,
+            acquirenteId: v.acquirenteId === id ? null : v.acquirenteId,
+          })),
+          movimenti: d.movimenti.map((m) => (m.contattoId === id ? { ...m, contattoId: null } : m)),
           noleggio: {
             ...d.noleggio,
-            prenotazioni: d.noleggio.prenotazioni.map((p) => (p.contattoId === id ? { ...p, contattoId: null } : p)),
+            prenotazioni: d.noleggio.prenotazioni.map((p) =>
+              p.contattoId === id ? { ...p, contattoId: null, clienteNomeLibero: p.clienteNomeLibero || current.nome } : p
+            ),
             preventivi: d.noleggio.preventivi.map((p) =>
               p.contattoId === id ? { ...p, contattoId: null, clienteNomeLibero: p.clienteNomeLibero || current.nome } : p
             ),
@@ -602,9 +728,21 @@ export function GestionaleProvider({ children }: { children: React.ReactNode }) 
 
   const updatePrenotazione = useCallback<GestionaleContextValue["updatePrenotazione"]>(
     (id, patch) => {
-      const current = dataRef.current.noleggio.prenotazioni.find((p) => p.id === id);
-      if (!current || !hasChanges(current, patch)) return;
-      const auto = dataRef.current.noleggio.veicoli.find((v) => v.id === current.veicoloId);
+      const { prenotazioni, veicoli } = dataRef.current.noleggio;
+      const current = prenotazioni.find((p) => p.id === id);
+      if (!current) return { ok: false, errore: "Prenotazione non trovata." };
+      if (!hasChanges(current, patch)) return { ok: true };
+      // Riattivare una prenotazione annullata (o spostarne le date) non deve creare un doppio impegno.
+      const dopo = { ...current, ...patch };
+      if (dopo.stato === "Prenotata" || dopo.stato === "In corso") {
+        if (dopo.dataFine < dopo.dataInizio) {
+          return { ok: false, errore: "La data di fine non può precedere quella di inizio." };
+        }
+        if (!veicoloLiberoNelPeriodo(dopo.veicoloId, dopo.dataInizio, dopo.dataFine, prenotazioni, id)) {
+          return { ok: false, errore: "L'auto risulta già prenotata in questo periodo." };
+        }
+      }
+      const auto = veicoli.find((v) => v.id === current.veicoloId);
       edit((d) => ({
         data: {
           ...d,
@@ -620,6 +758,7 @@ export function GestionaleProvider({ children }: { children: React.ReactNode }) 
           dettaglio: describeChanges(current, patch),
         },
       }));
+      return { ok: true };
     },
     [edit]
   );
@@ -715,6 +854,7 @@ export function GestionaleProvider({ children }: { children: React.ReactNode }) 
       const esito = addPrenotazione({
         veicoloId: pv.veicoloId,
         contattoId: pv.contattoId,
+        clienteNomeLibero: pv.clienteNomeLibero,
         dataInizio: pv.dataInizio,
         dataFine: pv.dataFine,
         tariffaApplicata: pv.tariffaApplicata,
@@ -744,6 +884,7 @@ export function GestionaleProvider({ children }: { children: React.ReactNode }) 
       deleteVeicolo,
       schedaDellAuto,
       cambiaStatoCatalogo,
+      impostaVisibilita,
       scollegaAuto,
       registraVendita,
       addMovimento,
@@ -776,6 +917,7 @@ export function GestionaleProvider({ children }: { children: React.ReactNode }) 
       deleteVeicolo,
       schedaDellAuto,
       cambiaStatoCatalogo,
+      impostaVisibilita,
       scollegaAuto,
       registraVendita,
       addMovimento,

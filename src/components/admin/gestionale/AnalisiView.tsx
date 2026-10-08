@@ -1,11 +1,12 @@
 "use client";
 
-import React, { useState } from "react";
+import React from "react";
 import { useAdmin } from "@/context/AdminContext";
 import { useGestionale } from "@/context/GestionaleContext";
 import { annoNum, computeVeicolo, euro, meseNum, percento } from "@/lib/gestionale/calc";
 import { MESI } from "@/lib/gestionale/types";
 import { Stat, signedText } from "../ui/Data";
+import { useUrlState } from "../useUrlState";
 import { FilterTabs, PageHeader, type TabOption } from "../ui/Layout";
 import { tableWrap, tdCls, thCls } from "../ui/styles";
 
@@ -26,7 +27,7 @@ function useAnalisi() {
 }
 
 function Costi() {
-  const { veicoli, risultato, venduteNelMese, somma } = useAnalisi();
+  const { veicoli, anno, risultato, venduteNelMese, somma } = useAnalisi();
 
   const righe = MESI.map((nome, i) => {
     const mese = i + 1;
@@ -51,18 +52,18 @@ function Costi() {
   });
 
   const fissiMedi = righe.reduce((s, r) => s + r.fissi, 0) / 12;
-  const vendute = veicoli.filter((v) => v.dataVendita);
+  const vendute = veicoli.filter((v) => v.dataVendita && annoNum(v.dataVendita) === anno);
   const margineMedio = vendute.length
     ? vendute.reduce((s, v) => s + (risultato(v).risultatoDopoIva || 0), 0) / vendute.length
     : 0;
-  const operazioniNecessarie = margineMedio ? fissiMedi / margineMedio : 0;
+  const operazioniNecessarie = margineMedio > 0 ? fissiMedi / margineMedio : null;
 
   return (
     <>
       <div className="mb-4 grid gap-3 sm:grid-cols-3">
         <Stat label="Costi fissi medi al mese" value={euro(fissiMedi)} />
         <Stat label="Margine medio per operazione" value={euro(margineMedio)} tone={signedText(margineMedio)} />
-        <Stat label="Operazioni al mese per pareggiare" value={operazioniNecessarie.toFixed(1)} hint="Break-even sui costi fissi" />
+        <Stat label="Operazioni al mese per pareggiare" value={operazioniNecessarie === null ? "—" : operazioniNecessarie.toFixed(1)} hint={operazioniNecessarie === null ? "Serve un margine medio positivo" : "Break-even sui costi fissi"} />
       </div>
       <div className={tableWrap}>
         <table className="w-full min-w-[56rem]">
@@ -169,7 +170,7 @@ function Mensile() {
 
 export default function AnalisiView({ initialTab = "mensile" }: { initialTab?: AnalisiTab }) {
   const { impostazioni } = useGestionale();
-  const [tab, setTab] = useState<AnalisiTab>(initialTab);
+  const [tab, setTab] = useUrlState<AnalisiTab>("tab", initialTab);
   const tabs: TabOption<AnalisiTab>[] = [
     { id: "mensile", label: "Vendite per mese" },
     { id: "costi", label: "Costi e break-even" },

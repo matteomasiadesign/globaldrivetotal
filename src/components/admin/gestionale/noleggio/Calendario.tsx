@@ -6,6 +6,7 @@ import { useAdmin } from "@/context/AdminContext";
 import { useGestionale } from "@/context/GestionaleContext";
 import { euro } from "@/lib/gestionale/calc";
 import { MESI } from "@/lib/gestionale/types";
+import { formatDate } from "@/lib/admin/dates";
 import { giorniNoleggio, importoPrenotazione, nomeRentVeicolo, type StatoPrenotazione } from "@/lib/gestionale/rent";
 import { EmptyState } from "../../ui/Layout";
 import { btnIcon } from "../../ui/styles";
@@ -38,14 +39,17 @@ export default function Calendario() {
     setMese(d.getMonth());
   }
 
-  const prenotazioneIl = (veicoloId: string, giorno: number) => {
+  // Le prenotazioni che toccano quel giorno: di solito una, due nel giorno del cambio
+  // (una riconsegna e un ritiro), ordinate come nella cella: prima chi riconsegna.
+  const prenotazioniIl = (veicoloId: string, giorno: number) => {
     const data = iso(anno, mese, giorno);
-    return noleggio.prenotazioni.find(
-      (p) => p.veicoloId === veicoloId && p.stato !== "Annullata" && data >= p.dataInizio && data <= p.dataFine
-    );
+    return noleggio.prenotazioni
+      .filter((p) => p.veicoloId === veicoloId && p.stato !== "Annullata" && data >= p.dataInizio && data <= p.dataFine)
+      .sort((a, b) => a.dataInizio.localeCompare(b.dataInizio));
   };
   const dettaglio = noleggio.prenotazioni.find((p) => p.id === scelta);
-  const nomeCliente = (id: string | null) => contatti.find((c) => c.id === id)?.nome || "Non indicato";
+  const nomeCliente = (p: { contattoId: string | null; clienteNomeLibero: string }) =>
+    contatti.find((c) => c.id === p.contattoId)?.nome || p.clienteNomeLibero || "Non indicato";
 
   return (
     <>
@@ -95,16 +99,39 @@ export default function Calendario() {
                   {nomeRentVeicolo(v)}
                 </div>
                 {giorni.map((g) => {
-                  const p = prenotazioneIl(v.id, g);
+                  const prenotazioni = prenotazioniIl(v.id, g);
+                  const etichetta = (p: (typeof prenotazioni)[number]) =>
+                    `${nomeCliente(p)}: ${formatDate(p.dataInizio)} → ${formatDate(p.dataFine)}`;
+                  if (prenotazioni.length < 2) {
+                    const p = prenotazioni[0];
+                    return (
+                      <button
+                        key={g}
+                        type="button"
+                        disabled={!p}
+                        onClick={() => p && setScelta(p.id)}
+                        aria-label={p ? etichetta(p) : undefined}
+                        className={`min-h-9 border-b border-l border-adm-line ${p ? `${COLORE[p.stato]} cursor-pointer hover:brightness-125` : ""}`}
+                      />
+                    );
+                  }
+                  // Giorno del cambio: la metà sinistra è chi riconsegna, la destra chi ritira.
+                  const [esce, entra] = prenotazioni;
                   return (
-                    <button
-                      key={g}
-                      type="button"
-                      disabled={!p}
-                      onClick={() => p && setScelta(p.id)}
-                      aria-label={p ? `${nomeCliente(p.contattoId)}: ${p.dataInizio} → ${p.dataFine}` : undefined}
-                      className={`min-h-9 border-b border-l border-adm-line ${p ? `${COLORE[p.stato]} cursor-pointer hover:brightness-125` : ""}`}
-                    />
+                    <div key={g} className="relative min-h-9 border-b border-l border-adm-line">
+                      <button
+                        type="button"
+                        onClick={() => setScelta(esce.id)}
+                        aria-label={etichetta(esce)}
+                        className={`absolute inset-y-0 left-0 w-1/2 cursor-pointer hover:brightness-125 ${COLORE[esce.stato]}`}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setScelta(entra.id)}
+                        aria-label={etichetta(entra)}
+                        className={`absolute inset-y-0 right-0 w-1/2 cursor-pointer hover:brightness-125 ${COLORE[entra.stato]}`}
+                      />
+                    </div>
                   );
                 })}
               </Fragment>
@@ -116,9 +143,9 @@ export default function Calendario() {
       {dettaglio && (
         <section className="mt-4 max-w-sm rounded-xl border border-adm-line bg-adm-surface p-4">
           <h3 className="mb-2 text-sm font-semibold text-white">Dettaglio prenotazione</h3>
-          <SummaryRow label="Cliente" value={nomeCliente(dettaglio.contattoId)} />
-          <SummaryRow label="Dal" value={dettaglio.dataInizio} />
-          <SummaryRow label="Al" value={`${dettaglio.dataFine} (${giorniNoleggio(dettaglio.dataInizio, dettaglio.dataFine)} gg)`} />
+          <SummaryRow label="Cliente" value={nomeCliente(dettaglio)} />
+          <SummaryRow label="Dal" value={formatDate(dettaglio.dataInizio)} />
+          <SummaryRow label="Al" value={`${formatDate(dettaglio.dataFine)} (${giorniNoleggio(dettaglio.dataInizio, dettaglio.dataFine)} gg)`} />
           <SummaryRow label="Stato" value={dettaglio.stato} />
           <SummaryRow label="Ritiro" value={dettaglio.luogoRitiro || "—"} />
           <SummaryRow label="Riconsegna" value={dettaglio.luogoRiconsegna || "—"} />

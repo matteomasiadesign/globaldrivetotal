@@ -34,6 +34,7 @@ export default function SaleContractDrawer({
 
   const [f, setF] = useState(() => ({
     targa: veicolo?.targa ?? "",
+    contattoId: "",
     nome: "",
     nascitaSede: "",
     codiceFiscale: "",
@@ -61,6 +62,7 @@ export default function SaleContractDrawer({
     if (!c) return;
     setF((prev) => ({
       ...prev,
+      contattoId: c.id,
       nome: c.nome,
       nascitaSede: c.nascitaSede,
       codiceFiscale: c.codiceFiscale,
@@ -73,6 +75,14 @@ export default function SaleContractDrawer({
   async function submit() {
     if (!veicolo) return;
     const prezzoVendita = Number(f.prezzoVendita) || 0;
+    if (prezzoVendita <= 0) {
+      toast("Indica il prezzo di vendita");
+      return;
+    }
+    if (f.dataConsegna && f.dataConsegna < f.dataVendita) {
+      toast("La consegna non può precedere la vendita");
+      return;
+    }
     const targa = f.targa.trim().toUpperCase();
     const schedaAggiornata = { ...veicolo, targa, prezzoVendita, dataVendita: f.dataVendita };
     const acquirente = {
@@ -115,18 +125,23 @@ export default function SaleContractDrawer({
     }
 
     if (targa !== veicolo.targa) updateVeicolo(veicolo.id, { targa });
-    registraVendita(veicolo.id, { prezzoVendita, dataVendita: f.dataVendita, acquirente });
+    registraVendita(veicolo.id, {
+      prezzoVendita,
+      dataVendita: f.dataVendita,
+      acquirente,
+      contattoId: f.contattoId || null,
+      strumentoPagamento: f.strumentoPagamento,
+    });
     // Il dossier tiene solo il riferimento: codice fiscale e indirizzo restano nel PDF e in anagrafica.
-    if (veicolo.carId) {
-      addDocument({
-        carId: veicolo.carId,
-        carTitle: nomeVeicolo(schedaAggiornata),
-        title: `Contratto di vendita N° ${impostazioni.prossimoNumeroContratto}/${impostazioni.annoGestione}`,
-        category: "Contratto di Vendita",
-        source: "local_pdf",
-        notes: `Acquirente ${acquirente.nome || "non indicato"} · ${eur(prezzoVendita)}`,
-      });
-    }
+    // Per un'auto fuori catalogo il dossier ha come chiave la scheda economica.
+    addDocument({
+      carId: veicolo.carId ?? veicolo.id,
+      carTitle: nomeVeicolo(schedaAggiornata),
+      title: `Contratto di vendita N° ${impostazioni.prossimoNumeroContratto}/${impostazioni.annoGestione}`,
+      category: "Contratto di Vendita",
+      source: "local_pdf",
+      notes: `Acquirente ${acquirente.nome || "non indicato"} · ${eur(prezzoVendita)}`,
+    });
     toast(`Contratto generato: ${nomeVeicolo(schedaAggiornata)} risulta venduta`);
     onClose();
   }
@@ -137,6 +152,7 @@ export default function SaleContractDrawer({
       subtitle={`${nomeVeicolo(veicolo)} · N° ${impostazioni.prossimoNumeroContratto}/${impostazioni.annoGestione}`}
       submitLabel={generating ? "Genero il PDF…" : "Genera e scarica PDF"}
       submitDisabled={generating}
+      busy={generating}
       onSubmit={submit}
       onClose={onClose}
       width="max-w-xl"
@@ -147,7 +163,7 @@ export default function SaleContractDrawer({
         {aziendaIncompleta && (
           <span className="mt-1.5 block text-amber-300">
             Mancano partita IVA o sede legale dell&apos;azienda: compaiono vuote nel contratto.{" "}
-            <Link href="/admin/sito" className="underline">
+            <Link href="/admin/sito" onClick={onClose} className="underline">
               Completali in Sito
             </Link>
             .
@@ -199,7 +215,7 @@ export default function SaleContractDrawer({
 
       <Section title="Termini" columns={2}>
         <Field label="Prezzo di vendita (€)">
-          <input required type="number" min={0} value={f.prezzoVendita} onChange={(e) => set("prezzoVendita", e.target.value)} className={inputCls} />
+          <input required type="number" min={1} value={f.prezzoVendita} onChange={(e) => set("prezzoVendita", e.target.value)} className={inputCls} />
         </Field>
         <Field label="Data vendita">
           <input required type="date" value={f.dataVendita} onChange={(e) => set("dataVendita", e.target.value)} className={inputCls} />

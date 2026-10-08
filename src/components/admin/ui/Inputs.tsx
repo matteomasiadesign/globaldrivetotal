@@ -1,16 +1,29 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
 import { inputCls } from "./styles";
 
 // Campi che salvano quando si esce dal campo (non a ogni tasto): le schede con
 // molti dati si compilano senza che ogni lettera finisca nello storico modifiche.
-// `key` sul valore ricrea il campo se il dato cambia da fuori (es. dopo un annulla).
+// Mentre si scrive il campo tiene una bozza; quando il dato salvato cambia (o resta
+// quello di prima perché il valore è stato rifiutato o normalizzato) la bozza si
+// riallinea, così il campo mostra sempre ciò che è davvero salvato.
 
 type BaseProps = Omit<
   React.InputHTMLAttributes<HTMLInputElement>,
   "value" | "defaultValue" | "onChange" | "onBlur" | "type"
 >;
+
+/** Bozza di un campo: parte dal valore salvato e lo riprende quando questo cambia. */
+function useDraft<T extends string | number>(value: T) {
+  const [draft, setDraft] = useState<string>(String(value));
+  const [seen, setSeen] = useState(value);
+  if (value !== seen) {
+    setSeen(value);
+    setDraft(String(value));
+  }
+  return [draft, setDraft] as const;
+}
 
 export function TextField({
   value,
@@ -23,13 +36,17 @@ export function TextField({
   onCommit: (value: string) => void;
   type?: "text" | "date" | "email" | "tel";
 }) {
+  const [draft, setDraft] = useDraft(value);
   return (
     <input
-      key={value}
       type={type}
-      defaultValue={value}
+      value={draft}
+      onChange={(e) => setDraft(e.target.value)}
       onBlur={(e) => {
-        if (e.target.value !== value) onCommit(e.target.value);
+        const next = type === "text" ? e.target.value.trim() : e.target.value;
+        if (next !== value) onCommit(next);
+        // Se il dato salvato non cambia (rifiutato o già uguale) si torna a mostrarlo.
+        setDraft(value);
       }}
       className={className}
       {...rest}
@@ -49,17 +66,20 @@ export function NumberField({
   onCommit: (value: number | null) => void;
   allowEmpty?: boolean;
 }) {
+  const [draft, setDraft] = useDraft(value ?? "");
   return (
     <input
-      key={value ?? "vuoto"}
       type="number"
       inputMode="decimal"
-      defaultValue={value ?? ""}
+      value={draft}
+      onChange={(e) => setDraft(e.target.value)}
       onBlur={(e) => {
         const raw = e.target.value.trim();
+        // Un testo non valido ("1e") arriva come stringa vuota: non va letto come 0.
+        const valido = e.target.validity.valid;
         const next = raw === "" ? (allowEmpty ? null : 0) : Number(raw);
-        if (Number.isNaN(next) || next === value) return;
-        onCommit(next);
+        if (valido && !(typeof next === "number" && Number.isNaN(next)) && next !== value) onCommit(next);
+        setDraft(String(value ?? ""));
       }}
       className={className}
       {...rest}

@@ -20,6 +20,8 @@ export interface Lead {
   message?: string;
   carId?: string;
   carLabel?: string;
+  /** Contatto in anagrafica creato da questa richiesta ("Salva in anagrafica"). */
+  contattoId?: string;
   // Campi specifici del form (budget, anno minimo, km...), tutti stringhe.
   details?: Record<string, string>;
   // Pagina da cui è partita la richiesta (es. "/catalogo").

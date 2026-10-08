@@ -3,6 +3,7 @@
 import React, { useState } from "react";
 import { Landmark, Search } from "lucide-react";
 import { useGestionale } from "@/context/GestionaleContext";
+import { formatDate } from "@/lib/admin/dates";
 import { euro, nomeVeicolo } from "@/lib/gestionale/calc";
 import { Stat } from "../ui/Data";
 import { Switch } from "../ui/Field";
@@ -37,7 +38,7 @@ export default function BancaView() {
         description="Riconciliazione: spunta i movimenti che ritrovi sull'estratto conto."
       />
 
-      <div className="mb-4 grid grid-cols-2 gap-3">
+      <div className="mb-4 grid gap-3 sm:grid-cols-2">
         <Stat label="Movimenti bancari" value={bancari.length} />
         <Stat
           label="Da riconciliare"
@@ -83,7 +84,7 @@ export default function BancaView() {
               <div className="min-w-0 flex-1 basis-48">
                 <span className="block truncate font-medium text-white">{m.descrizione || m.categoria}</span>
                 <span className="block truncate text-sm text-adm-muted">
-                  {m.data} · {nomeAuto(m.autoId)}
+                  {formatDate(m.data)} · {nomeAuto(m.autoId)}
                 </span>
               </div>
               <span className={`min-w-24 text-right font-medium tabular-nums ${m.tipo === "Entrata" ? "text-emerald-400" : "text-slate-100"}`}>

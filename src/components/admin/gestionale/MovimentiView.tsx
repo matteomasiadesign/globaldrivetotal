@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import { Pencil, Plus, Receipt, Search, Trash2 } from "lucide-react";
 import { useAdmin } from "@/context/AdminContext";
 import { useGestionale } from "@/context/GestionaleContext";
+import { formatDate } from "@/lib/admin/dates";
 import { euro, nomeVeicolo } from "@/lib/gestionale/calc";
 import type { Movimento } from "@/lib/gestionale/types";
 import { useEditors } from "../AdminEditors";
@@ -72,7 +73,7 @@ export default function MovimentiView({ initialAuto }: { initialAuto?: string })
         }
       />
 
-      <div className="mb-4 grid grid-cols-3 gap-3">
+      <div className="mb-4 grid gap-3 sm:grid-cols-3">
         <Stat label="Entrate" value={euro(entrate)} />
         <Stat label="Uscite" value={euro(uscite)} />
         <Stat label="Saldo" value={euro(entrate - uscite)} tone={signedText(entrate - uscite)} />
@@ -123,7 +124,7 @@ export default function MovimentiView({ initialAuto }: { initialAuto?: string })
                 >
                   <span className="block truncate font-medium text-white">{nome}</span>
                   <span className="block truncate text-sm text-adm-muted">
-                    {m.data} · {nomeAuto(m.autoId)} · {m.categoria}
+                    {formatDate(m.data)} · {nomeAuto(m.autoId)} · {m.categoria}
                     {m.fornitoreCliente ? ` · ${m.fornitoreCliente}` : ""}
                   </span>
                 </button>

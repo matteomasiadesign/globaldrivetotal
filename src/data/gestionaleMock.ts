@@ -15,6 +15,8 @@ const anno = new Date().getFullYear();
 
 const veicolo = (v: Partial<Veicolo> & Pick<Veicolo, "id" | "marca" | "modello">): Veicolo => ({
   carId: null,
+  fornitoreId: null,
+  acquirenteId: null,
   targa: "",
   versione: "",
   chilometraggio: 0,
@@ -38,6 +40,7 @@ const movimento = (m: Partial<Movimento> & Pick<Movimento, "id" | "data" | "impo
   const iva = m.iva ?? 0;
   return {
     autoId: null,
+    contattoId: null,
     descrizione: "",
     fornitoreCliente: "",
     tipo: "Uscita",
@@ -142,6 +145,7 @@ export const initialGestionale: GestionaleData = {
       prezzoAcquisto: 13800,
       prezzoVendita: 16500,
       numeroFattura: "7/" + anno,
+      acquirenteId: "gc-1",
     }),
     veicolo({
       id: "gv-duster",
@@ -173,8 +177,8 @@ export const initialGestionale: GestionaleData = {
 
   movimenti: [
     movimento({ id: "gm-1", data: giorniFa(45), autoId: "gv-golf", descrizione: "Acquisto Golf", categoria: "Acquisto veicolo", fornitoreCliente: "Privato", imponibile: 18200, riconciliato: true }),
-    movimento({ id: "gm-2", data: giorniFa(38), autoId: "gv-golf", descrizione: "Tagliando e filtri", categoria: "Meccanica / Tagliando", fornitoreCliente: "Officina Mele", imponibile: 380, iva: 83.6, ivaDetraibile: true, numeroDocumento: "112/" + anno, riconciliato: true }),
-    movimento({ id: "gm-3", data: giorniFa(36), autoId: "gv-golf", descrizione: "Lavaggio e detailing", categoria: "Lavaggio / Detailing", fornitoreCliente: "Autolavaggio Express", imponibile: 60, iva: 13.2, pagamento: "CASH", ivaDetraibile: true }),
+    movimento({ id: "gm-2", data: giorniFa(38), autoId: "gv-golf", descrizione: "Tagliando e filtri", categoria: "Meccanica / Tagliando", fornitoreCliente: "Officina Mele", contattoId: "gc-3", imponibile: 380, iva: 83.6, ivaDetraibile: true, numeroDocumento: "112/" + anno, riconciliato: true }),
+    movimento({ id: "gm-3", data: giorniFa(36), autoId: "gv-golf", descrizione: "Lavaggio e detailing", categoria: "Lavaggio / Detailing", fornitoreCliente: "Autolavaggio Express", contattoId: "gc-4", imponibile: 60, iva: 13.2, pagamento: "CASH", ivaDetraibile: true }),
     movimento({ id: "gm-4", data: giorniFa(30), autoId: "gv-panda", descrizione: "Acquisto Panda", categoria: "Acquisto veicolo", fornitoreCliente: "Privato", imponibile: 10600, riconciliato: true }),
     movimento({
       id: "gm-5",
@@ -183,6 +187,7 @@ export const initialGestionale: GestionaleData = {
       descrizione: "Riparazione paraurti",
       categoria: "Carrozzeria",
       fornitoreCliente: "Carrozzeria Sanna",
+      contattoId: "gc-2",
       imponibile: 450,
       iva: 99,
       ivaDetraibile: true,
@@ -193,7 +198,7 @@ export const initialGestionale: GestionaleData = {
     }),
     movimento({ id: "gm-6", data: giorniFa(80), autoId: "gv-renegade", descrizione: "Acquisto Renegade", categoria: "Acquisto veicolo", fornitoreCliente: "Privato", imponibile: 13800, riconciliato: true }),
     movimento({ id: "gm-7", data: giorniFa(70), autoId: "gv-renegade", descrizione: "Pneumatici quattro stagioni", categoria: "Pneumatici / Assetto", fornitoreCliente: "Gomme Sassari", imponibile: 520, iva: 114.4, ivaDetraibile: true, riconciliato: true }),
-    movimento({ id: "gm-8", data: giorniFa(12), autoId: "gv-renegade", descrizione: "Vendita Renegade", tipo: "Entrata", categoria: "Vendita veicolo", naturaCosto: "Variabile generale", fornitoreCliente: "Marco Pinna", imponibile: 16500, numeroDocumento: "7/" + anno, pagamento: "Bonifico", riconciliato: true }),
+    movimento({ id: "gm-8", data: giorniFa(12), autoId: "gv-renegade", descrizione: "Vendita Renegade", tipo: "Entrata", categoria: "Vendita veicolo", naturaCosto: "Variabile generale", fornitoreCliente: "Marco Pinna", contattoId: "gc-1", imponibile: 16500, numeroDocumento: "7/" + anno, pagamento: "Bonifico", riconciliato: true }),
     movimento({ id: "gm-9", data: giorniFa(20), autoId: "gv-yaris", descrizione: "Acquisto Yaris Cross", categoria: "Acquisto veicolo", fornitoreCliente: "Privato", imponibile: 21000, riconciliato: true }),
     movimento({ id: "gm-10", data: giorniFa(6), autoId: "gv-fiesta", descrizione: "Acquisto Fiesta", categoria: "Acquisto veicolo", fornitoreCliente: "Privato", imponibile: 7400 }),
     movimento({ id: "gm-11", data: giorniFa(4), autoId: "gv-fiesta", descrizione: "Trasporto dal venditore", categoria: "Trasporto", fornitoreCliente: "Autotrasporti Cossu", imponibile: 120, iva: 26.4, ivaDetraibile: true, dataScadenza: tra(10), statoPagamento: "Da saldare", dataSaldo: "" }),
@@ -217,8 +222,8 @@ export const initialGestionale: GestionaleData = {
       { id: "gr-3", marca: "Toyota", modello: "Yaris", targa: "GE004KL", categoria: "Compatta", kmAttuali: 26000, tariffaGiornaliera: 45, stato: "Disponibile", dataRevisione: giorniFa(10), dataBollo: tra(100), dataAssicurazione: tra(200), dataTagliando: tra(30), note: "Revisione da rifare." },
     ],
     prenotazioni: [
-      { id: "gp-1", veicoloId: "gr-1", contattoId: "gc-5", dataInizio: giorniFa(2), dataFine: tra(4), tariffaApplicata: 35, cauzione: 200, stato: "In corso", luogoRitiro: "Sede Sassari", luogoRiconsegna: "Sede Sassari", note: "" },
-      { id: "gp-2", veicoloId: "gr-2", contattoId: null, dataInizio: tra(10), dataFine: tra(17), tariffaApplicata: 38, cauzione: 200, stato: "Prenotata", luogoRitiro: "Aeroporto di Alghero", luogoRiconsegna: "Aeroporto di Alghero", note: "" },
+      { id: "gp-1", veicoloId: "gr-1", contattoId: "gc-5", clienteNomeLibero: "", dataInizio: giorniFa(2), dataFine: tra(4), tariffaApplicata: 35, cauzione: 200, stato: "In corso", luogoRitiro: "Sede Sassari", luogoRiconsegna: "Sede Sassari", note: "" },
+      { id: "gp-2", veicoloId: "gr-2", contattoId: null, clienteNomeLibero: "Famiglia Orrù", dataInizio: tra(10), dataFine: tra(17), tariffaApplicata: 38, cauzione: 200, stato: "Prenotata", luogoRitiro: "Aeroporto di Alghero", luogoRiconsegna: "Aeroporto di Alghero", note: "" },
     ],
     tariffe: [
       { id: "gt-1", categoria: "Economy", nomePeriodo: "Alta stagione", dataInizio: `${anno}-06-15`, dataFine: `${anno}-09-15`, tariffaGiornaliera: 55 },

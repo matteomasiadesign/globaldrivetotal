@@ -91,12 +91,12 @@ export default function ContattiView() {
                   </span>
                 </button>
                 {c.telefono && (
-                  <a href={telLink(c.telefono)} aria-label={`Chiama ${c.nome}`} className="hidden size-8 place-items-center rounded-lg text-adm-muted hover:bg-white/10 hover:text-white sm:grid">
+                  <a href={telLink(c.telefono)} aria-label={`Chiama ${c.nome}`} className="grid size-8 place-items-center rounded-lg text-adm-muted hover:bg-white/10 hover:text-white">
                     <Phone className="size-4" />
                   </a>
                 )}
                 {c.email && (
-                  <a href={`mailto:${c.email}`} aria-label={`Scrivi a ${c.nome}`} className="hidden size-8 place-items-center rounded-lg text-adm-muted hover:bg-white/10 hover:text-white sm:grid">
+                  <a href={`mailto:${c.email}`} aria-label={`Scrivi a ${c.nome}`} className="grid size-8 place-items-center rounded-lg text-adm-muted hover:bg-white/10 hover:text-white">
                     <Mail className="size-4" />
                   </a>
                 )}

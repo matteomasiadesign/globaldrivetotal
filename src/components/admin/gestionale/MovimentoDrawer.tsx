@@ -41,6 +41,7 @@ export default function MovimentoDrawer({
     data: esistente?.data ?? today,
     tipo: (esistente?.tipo ?? "Uscita") as TipoMovimento,
     autoId: esistente?.autoId ?? autoId ?? "",
+    contattoId: esistente?.contattoId ?? "",
     descrizione: esistente?.descrizione ?? "",
     fornitoreCliente: esistente?.fornitoreCliente ?? "",
     categoria: esistente?.categoria ?? (autoId ? "Meccanica / Tagliando" : "Altro"),
@@ -56,6 +57,7 @@ export default function MovimentoDrawer({
   const set = <K extends keyof typeof f>(key: K, value: (typeof f)[K]) =>
     setF((prev) => ({ ...prev, [key]: value }));
 
+  const contattoScelto = contatti.find((c) => c.id === f.contattoId);
   const imponibile = Number(f.imponibile) || 0;
   const iva = Number(f.iva) || 0;
 
@@ -78,14 +80,16 @@ export default function MovimentoDrawer({
       data: f.data,
       tipo: f.tipo,
       autoId: f.autoId || null,
+      contattoId: f.contattoId || null,
       descrizione: f.descrizione.trim(),
-      fornitoreCliente: f.fornitoreCliente.trim(),
+      // Con un contatto scelto il nome segue l'anagrafica; altrimenti resta il testo scritto.
+      fornitoreCliente: contattoScelto ? contattoScelto.nome : f.fornitoreCliente.trim(),
       categoria: f.categoria,
       naturaCosto: f.naturaCosto,
       pagamento: f.pagamento,
       imponibile,
       iva,
-      ivaDetraibile: f.ivaDetraibile,
+      ivaDetraibile: f.tipo === "Uscita" && f.ivaDetraibile,
       numeroDocumento: f.numeroDocumento.trim(),
       statoPagamento: f.statoPagamento,
       dataScadenza: saldato ? "" : f.dataScadenza,
@@ -134,19 +138,21 @@ export default function MovimentoDrawer({
             className={inputCls}
           />
         </Field>
-        <Field label={f.tipo === "Entrata" ? "Cliente" : "Fornitore"} className="sm:col-span-2">
-          <input
-            list="gd-contatti"
-            value={f.fornitoreCliente}
-            onChange={(e) => set("fornitoreCliente", e.target.value)}
-            className={inputCls}
+        <Field label={f.tipo === "Entrata" ? "Cliente" : "Fornitore"} className="sm:col-span-2" hint="Scegli dall'anagrafica per collegare il movimento al contatto.">
+          <SelectField
+            value={f.contattoId}
+            blank="— non in anagrafica —"
+            options={contatti
+              .filter((c) => (f.tipo === "Entrata" ? c.tipo !== "Fornitore" : c.tipo !== "Cliente") || c.id === f.contattoId)
+              .map((c) => ({ value: c.id, label: c.nome }))}
+            onChange={(v) => set("contattoId", v)}
           />
-          <datalist id="gd-contatti">
-            {contatti.map((c) => (
-              <option key={c.id} value={c.nome} />
-            ))}
-          </datalist>
         </Field>
+        {!f.contattoId && (
+          <Field label="Nome (se non è in anagrafica)" className="sm:col-span-2">
+            <input value={f.fornitoreCliente} onChange={(e) => set("fornitoreCliente", e.target.value)} className={inputCls} />
+          </Field>
+        )}
         <Field label="Categoria">
           <SelectField value={f.categoria} options={CATEGORIE_MOVIMENTO} onChange={(v) => set("categoria", v)} />
         </Field>
@@ -171,7 +177,7 @@ export default function MovimentoDrawer({
             className={btnSecondary}
             onClick={() => set("iva", String(Math.round(imponibile * impostazioni.aliquotaIva * 100) / 100))}
           >
-            Calcola IVA al {Math.round(impostazioni.aliquotaIva * 100)}%
+            Calcola IVA al {Math.round(impostazioni.aliquotaIva * 10000) / 100}%
           </button>
         </div>
         <Field label="Pagamento">
@@ -180,14 +186,16 @@ export default function MovimentoDrawer({
         <Field label="N. documento" className="sm:col-span-2">
           <input placeholder="es. fattura 112/2026" value={f.numeroDocumento} onChange={(e) => set("numeroDocumento", e.target.value)} className={inputCls} />
         </Field>
-        <div className="sm:col-span-3">
-          <ToggleRow
-            title="IVA detraibile"
-            description="Entra nel registro acquisti e nella liquidazione IVA."
-            checked={f.ivaDetraibile}
-            onChange={(v) => set("ivaDetraibile", v)}
-          />
-        </div>
+        {f.tipo === "Uscita" && (
+          <div className="sm:col-span-3">
+            <ToggleRow
+              title="IVA detraibile"
+              description="Entra nel registro acquisti e nella liquidazione IVA."
+              checked={f.ivaDetraibile}
+              onChange={(v) => set("ivaDetraibile", v)}
+            />
+          </div>
+        )}
       </Section>
 
       <Section title="Pagamento" columns={2}>
@@ -196,7 +204,7 @@ export default function MovimentoDrawer({
         </Field>
         {f.statoPagamento === "Da saldare" && (
           <Field label="Scadenza">
-            <input type="date" value={f.dataScadenza} onChange={(e) => set("dataScadenza", e.target.value)} className={inputCls} />
+            <input required type="date" value={f.dataScadenza} onChange={(e) => set("dataScadenza", e.target.value)} className={inputCls} />
           </Field>
         )}
       </Section>

@@ -27,6 +27,8 @@ npm run lint
 | **Lead dal sito** | **Reali** (vedi sotto): salvati dal server |
 | Pagina "Richieste" in admin | **Finta**: mostra lead demo con la stessa forma di quelli reali (`Lead`), non legge ancora quelli salvati |
 
+| Casper | Risposte locali simulate; Gemini si attiva solo con `GEMINI_API_KEY` |
+
 ### Struttura dell'admin
 
 Ogni sezione è una rotta con un solo compito; `src/app/admin/layout.tsx` mette sidebar, login e stato condiviso.
@@ -38,7 +40,7 @@ Ogni sezione è una rotta con un solo compito; `src/app/admin/layout.tsx` mette 
 | `/admin/agenda` | Appuntamenti per giorno e calendario mensile; conferma, completa, sposta | `views/AgendaView` |
 | `/admin/auto` | Prezzo, stato, visibilità nel catalogo e vetrina in home; costo di ogni auto; schede fuori catalogo | `views/CarsView` |
 | `/admin/auto/[id]` | Scheda economica: dati, prezzi, movimenti, conto economico (margine, IVA, ROI), contratto di vendita | `gestionale/VeicoloView` |
-| `/admin/documenti` | Dossier per auto (cosa manca) e contratto di vendita in PDF | `views/DocumentsView` |
+| `/admin/documenti` | Dossier per auto, anche fuori catalogo (cosa manca): file caricati o link a Google Drive, contratto di vendita in PDF | `views/DocumentsView` |
 | `/admin/movimenti` | Libro cassa e banca: entrate e uscite, collegate a un'auto o generali | `gestionale/MovimentiView` |
 | `/admin/scadenzario` | Incassi e pagamenti da saldare, per scadenza | `gestionale/ScadenzarioView` |
 | `/admin/iva` | Liquidazione trimestrale, registro vendite, registro acquisti (`?tab=`) | `gestionale/IvaView` |
@@ -50,10 +52,19 @@ Ogni sezione è una rotta con un solo compito; `src/app/admin/layout.tsx` mette 
 | `/admin/impostazioni` | Aliquota IVA, soglie, numerazione contratti, PEC | `gestionale/ImpostazioniView` |
 | `/admin/storico` | Chi ha creato, modificato o eliminato cosa | `gestionale/StoricoView` |
 
+**Come si collegano le cose.** Un'auto nasce nel parco auto con fornitore, prezzo e data di acquisto: la scheda economica e il movimento "Acquisto veicolo" si creano da soli, collegati al fornitore in anagrafica. I costi (movimenti con l'auto) alimentano costo totale, margine, IVA e analisi. Il contratto di vendita segna l'auto venduta, collega l'acquirente (anagrafica ⇄ auto), registra l'incasso atteso nello scadenzario, chiude la richiesta di chi ha comprato e archivia il contratto nel dossier. Nascondere o mostrare un'auto sul sito, o cambiarne lo stato, riallinea la scheda e viceversa. Un'auto tolta dal catalogo resta come scheda archiviata, con costi e documenti.
+
+**Documenti.** Ogni documento del dossier si aggiunge in due modi: caricando un file (PDF, JPG, PNG, WEBP, fino a 25 MB) oppure incollando il link di Google Drive. I file caricati stanno per ora nel browser (IndexedDB) tramite `src/lib/storage/vehicleFiles.ts`, l'unico file da riscrivere per spostarli nel bucket `vehicle-documents` di Supabase (le istruzioni sono in testa al file); il record del documento non cambia. Il dossier segue l'auto anche quando esce dal catalogo.
+
+**App installabile.** L'area `/admin` ha un `public/manifest.json` (nome, icone in `public/icons/`, ambito `/admin`, tema scuro): da telefono o da Chrome si può installare come app. Non c'è un service worker, quindi non funziona offline: serve solo a farla comparire come app a sé.
+
+**Noleggio.** Un'auto è occupata dal giorno di ritiro a quello di riconsegna escluso: un cliente può ritirarla lo stesso giorno in cui un altro la riporta (nel calendario quel giorno è diviso a metà) oppure più avanti. Un noleggio di un solo giorno occupa quel giorno. Le regole stanno in `fineOccupazione()` (`src/lib/gestionale/rent.ts`) e nel vincolo del database.
+
+**Viste condivisibili.** Tab e filtri delle pagine (`?tab=`, `?stato=`, `?filtro=`) si aggiornano nell'indirizzo mentre si usano, senza riempire la cronologia: ricaricando o condividendo il link si ritrova la stessa vista.
+
 **Il gestionale è il cardine del backoffice.** Ogni auto del catalogo ha una scheda economica (`Veicolo`, collegata con `carId`): lo stato scelto lì (o nel parco auto) decide cosa mostra il sito (`catalogoDaStato` in `src/lib/gestionale/calc.ts`), e il contratto di vendita segna l'auto venduta e salva il cliente in anagrafica. Le formule (costo, margine, IVA, ROI, liquidazione) sono funzioni pure in `src/lib/gestionale/calc.ts`; il noleggio in `rent.ts`; il PDF del contratto in `contractPdf.ts`. Ragione sociale, P.IVA, sede e contatti del venditore nei contratti si leggono da `/admin/sito`. Il gestionale originale (Next 14 + Supabase) è documentato in `docs/gestionale-originale/` con i suoi schemi SQL, utili quando si scriverà il database.
 
-Creazione e modifica avvengono in pannelli laterali (`AppointmentDrawer`, `CarDrawer`, ...) apribili da qualunque pagina via `useEditors()`. I filtri iniziali si passano dall'URL (`?stato=`, `?tab=`, `?filtro=`, `?auto=`). Componenti base in `src/components/admin/ui/`.
-| Casper | Risposte locali simulate; Gemini si attiva solo con `GEMINI_API_KEY` |
+Creazione e modifica avvengono in pannelli laterali (`AppointmentDrawer`, `CarDrawer`, ...) apribili da qualunque pagina via `useEditors()`. I filtri iniziali si passano dall'URL (`?stato=`, `?tab=`, `?filtro=`, `?auto=`). Attenzione: `?auto=` in `/admin/documenti` è l'id dell'auto (o della scheda, per le auto fuori catalogo), in `/admin/movimenti` è l'id della scheda economica. Componenti base in `src/components/admin/ui/`.
 
 ## Lead (richieste dei clienti)
 
@@ -98,6 +109,8 @@ Il file `.env.local` non va in git. Crearlo in locale, e **aggiungere un `.env.e
 | Chiave del provider email | prevista | Notifiche lead |
 
 ## Schema del database previsto
+
+> **Lo schema definitivo è `supabase/schema.sql`** (sito, gestionale, noleggio, ruoli, storage, RLS, trigger). Non è ancora applicato: si esegue una volta su un progetto Supabase nuovo (istruzioni in testa al file). La bozza qui sotto è la versione precedente, solo per il sito.
 
 Bozza delle tabelle, ricavata dai tipi in `src/types/` e dai form. Non è ancora applicata: è indipendente dal servizio scelto (SQL Postgres). Convenzioni: chiavi `uuid`, date `timestamptz`, valori testuali a stati chiusi con `CHECK` (più facili da evolvere degli enum). Nel codice i valori sono etichette italiane ("In Trattativa"): vanno mappati in slug (`in_trattativa`).
 

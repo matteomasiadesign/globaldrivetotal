@@ -37,6 +37,8 @@ export interface RentPrenotazione {
   id: string;
   veicoloId: string;
   contattoId: string | null;
+  /** Nome del cliente se il contatto è stato eliminato o non c'è ancora. */
+  clienteNomeLibero: string;
   dataInizio: string;
   dataFine: string;
   tariffaApplicata: number;
@@ -89,6 +91,14 @@ export function importoPrenotazione(p: Pick<RentPrenotazione, "dataInizio" | "da
   return giorniNoleggio(p.dataInizio, p.dataFine) * (Number(p.tariffaApplicata) || 0);
 }
 
+// Un noleggio occupa l'auto dal giorno di ritiro fino al giorno di riconsegna ESCLUSO: se un
+// cliente la riporta il 10, un altro può ritirarla lo stesso 10 (cambio nello stesso giorno)
+// oppure più avanti (in differita). Un noleggio che inizia e finisce lo stesso giorno vale
+// comunque un giorno intero (come in giorniNoleggio), quindi due non stanno nello stesso giorno.
+export function fineOccupazione(dataInizio: string, dataFine: string): string {
+  return dataFine > dataInizio ? dataFine : addDays(dataInizio, 1);
+}
+
 /** Controllo "amichevole" lato interfaccia: l'auto è libera nel periodo scelto? */
 export function veicoloLiberoNelPeriodo(
   veicoloId: string,
@@ -100,7 +110,7 @@ export function veicoloLiberoNelPeriodo(
   return !prenotazioni.some((p) => {
     if (p.veicoloId !== veicoloId || p.id === escludiPrenotazioneId) return false;
     if (p.stato !== "Prenotata" && p.stato !== "In corso") return false;
-    return dataInizio <= p.dataFine && dataFine >= p.dataInizio;
+    return dataInizio < fineOccupazione(p.dataInizio, p.dataFine) && fineOccupazione(dataInizio, dataFine) > p.dataInizio;
   });
 }
 

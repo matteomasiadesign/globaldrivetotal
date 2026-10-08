@@ -32,6 +32,11 @@ interface CarForm {
   features: string;
   status: CarStatus;
   visible: boolean;
+  // Acquisto (solo per le auto nuove): finisce nella scheda economica e nei movimenti.
+  fornitoreId: string;
+  prezzoAcquisto: string;
+  dataAcquisto: string;
+  targa: string;
   featured: boolean;
 }
 
@@ -63,7 +68,8 @@ export default function CarDrawer({
   onClose: () => void;
 }) {
   const { cars, addCar, updateCar } = useCars();
-  const { veicoli, updateVeicolo, schedaDellAuto, cambiaStatoCatalogo } = useGestionale();
+  const { veicoli, contatti, updateVeicolo, schedaDellAuto, cambiaStatoCatalogo, impostaVisibilita } =
+    useGestionale();
   const toast = useToast();
   const car = cars.find((c) => c.id === carId);
 
@@ -83,6 +89,10 @@ export default function CarDrawer({
     features: car?.features.join(", ") ?? "",
     status: car?.status ?? "Disponibile",
     visible: car ? !car.hidden : true,
+    fornitoreId: "",
+    prezzoAcquisto: "",
+    dataAcquisto: "",
+    targa: "",
     featured: car?.featured ?? false,
   }));
   const [photos, setPhotos] = useState<PhotoItem[]>(() =>
@@ -147,7 +157,7 @@ export default function CarDrawer({
       location: form.location.trim(),
     };
 
-    // Ogni auto del catalogo ha la sua scheda dei conti: dati tecnici e stato restano allineati.
+    // Ogni auto del catalogo ha la sua scheda economica: dati tecnici e stato restano allineati.
     if (car) {
       updateCar(car.id, data);
       const scheda = veicoli.find((v) => v.carId === car.id);
@@ -160,10 +170,16 @@ export default function CarDrawer({
           alimentazione: data.fuel,
         });
         if (data.status !== car.status) cambiaStatoCatalogo(car.id, data.status);
+        if (data.hidden !== Boolean(car.hidden)) impostaVisibilita(car.id, data.hidden);
       }
       toast(`${data.brand} ${data.model} aggiornata`);
     } else {
-      schedaDellAuto(addCar(data));
+      schedaDellAuto(addCar(data), {
+        fornitoreId: form.fornitoreId || null,
+        prezzoAcquisto: Number(form.prezzoAcquisto) || 0,
+        dataAcquisto: form.dataAcquisto,
+        targa: form.targa.trim().toUpperCase(),
+      });
       toast(`${data.brand} ${data.model} aggiunta al parco auto`);
     }
     onClose();
@@ -175,6 +191,7 @@ export default function CarDrawer({
       subtitle={car ? "Modifica scheda" : "Compila la scheda: apparirà nel catalogo se è visibile"}
       submitLabel={car ? "Salva modifiche" : "Aggiungi auto"}
       submitDisabled={saving || overBudget}
+      busy={saving}
       onSubmit={submit}
       onClose={onClose}
       width="max-w-xl"
@@ -209,6 +226,32 @@ export default function CarDrawer({
           />
         </Field>
       </Section>
+
+      {!car && (
+        <Section title="Acquisto" columns={2}>
+          <Field label="Acquistata da" className="sm:col-span-2" hint="Il fornitore si sceglie dall'anagrafica (Contatti).">
+            <select value={form.fornitoreId} onChange={(e) => set("fornitoreId", e.target.value)} className={inputCls}>
+              <option value="">— non indicato —</option>
+              {contatti
+                .filter((c) => c.tipo !== "Cliente")
+                .map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.nome}
+                  </option>
+                ))}
+            </select>
+          </Field>
+          <Field label="Prezzo di acquisto (€)" hint="Crea da solo il movimento d'acquisto.">
+            <input type="number" min={0} value={form.prezzoAcquisto} onChange={(e) => set("prezzoAcquisto", e.target.value)} className={inputCls} />
+          </Field>
+          <Field label="Data di acquisto">
+            <input type="date" value={form.dataAcquisto} onChange={(e) => set("dataAcquisto", e.target.value)} className={inputCls} />
+          </Field>
+          <Field label="Targa">
+            <input value={form.targa} onChange={(e) => set("targa", e.target.value)} className={`${inputCls} uppercase`} />
+          </Field>
+        </Section>
+      )}
 
       <Section title="Prezzo" columns={1}>
         <Field label="Prezzo di vendita (€)">

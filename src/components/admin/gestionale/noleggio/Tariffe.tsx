@@ -56,10 +56,24 @@ export default function Tariffe() {
                 <TextField value={t.nomePeriodo} onCommit={(nomePeriodo) => updateTariffa(t.id, { nomePeriodo })} placeholder="Alta stagione" />
               </Field>
               <Field label="Dal">
-                <TextField type="date" value={t.dataInizio} onCommit={(dataInizio) => updateTariffa(t.id, { dataInizio })} />
+                <TextField
+                  type="date"
+                  value={t.dataInizio}
+                  onCommit={(dataInizio) => {
+                    if (dataInizio > t.dataFine) return toast("L'inizio non può seguire la fine");
+                    updateTariffa(t.id, { dataInizio });
+                  }}
+                />
               </Field>
               <Field label="Al">
-                <TextField type="date" value={t.dataFine} onCommit={(dataFine) => updateTariffa(t.id, { dataFine })} />
+                <TextField
+                  type="date"
+                  value={t.dataFine}
+                  onCommit={(dataFine) => {
+                    if (dataFine < t.dataInizio) return toast("La fine non può precedere l'inizio");
+                    updateTariffa(t.id, { dataFine });
+                  }}
+                />
               </Field>
               <Field label="€ al giorno">
                 <NumberField value={t.tariffaGiornaliera} onCommit={(n) => updateTariffa(t.id, { tariffaGiornaliera: n ?? 0 })} />

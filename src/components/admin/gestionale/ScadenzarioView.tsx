@@ -1,12 +1,13 @@
 "use client";
 
-import React, { useState } from "react";
+import React from "react";
 import { CalendarClock, Check } from "lucide-react";
 import { useAdmin } from "@/context/AdminContext";
 import { useGestionale } from "@/context/GestionaleContext";
 import { euro, nomeVeicolo } from "@/lib/gestionale/calc";
 import { formatShortDate } from "@/lib/admin/dates";
 import { useEditors } from "../AdminEditors";
+import { useUrlState } from "../useUrlState";
 import { Note, Stat } from "../ui/Data";
 import { EmptyState, FilterTabs, PageHeader, Pill, type TabOption } from "../ui/Layout";
 import { btnSecondary, rowDivider } from "../ui/styles";
@@ -19,7 +20,7 @@ export default function ScadenzarioView({ initialTab = "incassi" }: { initialTab
   const { movimenti, veicoli, updateMovimento } = useGestionale();
   const { openMovimento } = useEditors();
   const toast = useToast();
-  const [tab, setTab] = useState<ScadenzarioTab>(initialTab);
+  const [tab, setTab] = useUrlState<ScadenzarioTab>("tab", initialTab);
 
   const nomeAuto = (id: string | null) => {
     const v = veicoli.find((x) => x.id === id);
@@ -53,7 +54,7 @@ export default function ScadenzarioView({ initialTab = "incassi" }: { initialTab
     <>
       <PageHeader title="Scadenzario" description="Incassi e pagamenti ancora da saldare, dal più urgente." />
 
-      <div className="mb-4 grid grid-cols-2 gap-3">
+      <div className="mb-4 grid gap-3 sm:grid-cols-2">
         <Stat
           label="Da incassare"
           value={euro(totale(incassi))}

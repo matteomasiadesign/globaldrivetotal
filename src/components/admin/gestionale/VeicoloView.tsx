@@ -15,6 +15,8 @@ import {
   Trash2,
 } from "lucide-react";
 import { useAdmin } from "@/context/AdminContext";
+import { isOpenAppointment, LEAD_TYPE_LABEL } from "@/lib/admin/constants";
+import { formatDate, formatShortDate } from "@/lib/admin/dates";
 import { useCars } from "@/context/CarContext";
 import { useGestionale } from "@/context/GestionaleContext";
 import { computeVeicolo, euro, nomeVeicolo, percento } from "@/lib/gestionale/calc";
@@ -51,10 +53,10 @@ function Check({
 export default function VeicoloView({ veicoloId }: { veicoloId: string }) {
   const router = useRouter();
   const toast = useToast();
-  const { today } = useAdmin();
+  const { today, leads, appointments } = useAdmin();
   const { cars } = useCars();
-  const { openCar, openMovimento, openContratto } = useEditors();
-  const { veicoli, movimenti, impostazioni, updateVeicolo, deleteVeicolo, deleteMovimento } = useGestionale();
+  const { openCar, openMovimento, openContratto, openAppointment } = useEditors();
+  const { veicoli, movimenti, contatti, impostazioni, updateVeicolo, deleteVeicolo, deleteMovimento } = useGestionale();
 
   const v = veicoli.find((x) => x.id === veicoloId);
   if (!v) {
@@ -75,6 +77,8 @@ export default function VeicoloView({ veicoloId }: { veicoloId: string }) {
   const car = v.carId ? cars.find((c) => c.id === v.carId) : undefined;
   const mie = movimenti.filter((m) => m.autoId === v.id).sort((a, b) => b.data.localeCompare(a.data));
   const calc = computeVeicolo(v, movimenti, impostazioni, today);
+  const richieste = leads.filter((l) => v.carId && l.carId === v.carId);
+  const appuntamenti = appointments.filter((a) => v.carId && a.carId === v.carId && isOpenAppointment(a.status));
   const nome = nomeVeicolo(v);
   const patch = (p: Parameters<typeof updateVeicolo>[1]) => updateVeicolo(v.id, p);
 
@@ -102,10 +106,14 @@ export default function VeicoloView({ veicoloId }: { veicoloId: string }) {
                 ...(car
                   ? [
                       { label: "Modifica scheda pubblica", icon: Pencil, onSelect: () => openCar(car.id) },
-                      { label: "Documenti", icon: FolderOpen, onSelect: () => router.push(`/admin/documenti?auto=${car.id}`) },
                       { label: "Vedi nel catalogo", icon: ExternalLink, onSelect: () => window.open("/catalogo", "_blank") },
                     ]
                   : []),
+                {
+                  label: "Documenti",
+                  icon: FolderOpen,
+                  onSelect: () => router.push(`/admin/documenti?auto=${v.carId ?? v.id}`),
+                },
                 {
                   label: "Elimina scheda",
                   icon: Trash2,
@@ -154,12 +162,32 @@ export default function VeicoloView({ veicoloId }: { veicoloId: string }) {
               <Field label="Data vendita">
                 <TextField type="date" value={v.dataVendita} onCommit={(dataVendita) => patch({ dataVendita })} />
               </Field>
+              <Field label="Acquistata da">
+                <SelectField
+                  value={v.fornitoreId ?? ""}
+                  blank="— non indicato —"
+                  options={contatti
+                    .filter((c) => c.tipo !== "Cliente" || c.id === v.fornitoreId)
+                    .map((c) => ({ value: c.id, label: c.nome }))}
+                  onChange={(id) => patch({ fornitoreId: id || null })}
+                />
+              </Field>
+              <Field label="Venduta a" hint="Si imposta da sola con il contratto di vendita.">
+                <SelectField
+                  value={v.acquirenteId ?? ""}
+                  blank="— non venduta —"
+                  options={contatti
+                    .filter((c) => c.tipo !== "Fornitore" || c.id === v.acquirenteId)
+                    .map((c) => ({ value: c.id, label: c.nome }))}
+                  onChange={(id) => patch({ acquirenteId: id || null })}
+                />
+              </Field>
               {calc.isContoVendita && (
                 <Field label="Commissione (%)">
                   <NumberField
                     step="0.1"
                     value={Math.round(v.commissionePercentuale * 10000) / 100}
-                    onCommit={(n) => patch({ commissionePercentuale: (n ?? 0) / 100 })}
+                    onCommit={(n) => patch({ commissionePercentuale: Math.min(100, Math.max(0, n ?? 0)) / 100 })}
                   />
                 </Field>
               )}
@@ -212,10 +240,17 @@ export default function VeicoloView({ veicoloId }: { veicoloId: string }) {
           <Panel
             title={`Movimenti collegati (${mie.length})`}
             action={
-              <button type="button" onClick={() => openMovimento({ autoId: v.id })} className="inline-flex cursor-pointer items-center gap-1.5 text-sm text-blue-400 hover:text-blue-300">
-                <Plus className="size-4" />
-                Aggiungi
-              </button>
+              <div className="flex items-center gap-4">
+                {mie.length > 0 && (
+                  <Link href={`/admin/movimenti?auto=${v.id}`} className="text-sm text-blue-400 hover:text-blue-300">
+                    Vedi tutti
+                  </Link>
+                )}
+                <button type="button" onClick={() => openMovimento({ autoId: v.id })} className="inline-flex cursor-pointer items-center gap-1.5 text-sm text-blue-400 hover:text-blue-300">
+                  <Plus className="size-4" />
+                  Aggiungi
+                </button>
+              </div>
             }
           >
             {mie.length === 0 ? (
@@ -234,7 +269,7 @@ export default function VeicoloView({ veicoloId }: { veicoloId: string }) {
                     >
                       <span className="block truncate text-sm font-medium text-white">{m.descrizione || m.categoria}</span>
                       <span className="block truncate text-xs text-adm-muted">
-                        {m.data} · {m.categoria}
+                        {formatDate(m.data)} · {m.categoria}
                         {m.statoPagamento === "Da saldare" ? " · da saldare" : ""}
                       </span>
                     </button>
@@ -256,6 +291,41 @@ export default function VeicoloView({ veicoloId }: { veicoloId: string }) {
         </div>
 
         <div className="space-y-6">
+          {car && (
+            <Panel
+              title="Richieste e appuntamenti"
+              action={
+                <button
+                  type="button"
+                  onClick={() => openAppointment({ prefill: { carId: car.id, carName: `${car.brand} ${car.model}`, location: car.location } })}
+                  className="inline-flex cursor-pointer items-center gap-1.5 text-sm text-blue-400 hover:text-blue-300"
+                >
+                  <Plus className="size-4" />
+                  Fissa
+                </button>
+              }
+            >
+              {richieste.length + appuntamenti.length === 0 ? (
+                <p className="px-4 py-5 text-sm text-adm-muted">Nessuna richiesta né appuntamento per questa auto.</p>
+              ) : (
+                <div className={rowDivider}>
+                  {richieste.slice(0, 4).map((l) => (
+                    <Link key={l.id} href="/admin/richieste" className="block px-4 py-2.5 transition-colors hover:bg-white/5">
+                      <span className="block truncate text-sm font-medium text-white">{l.name || l.phone}</span>
+                      <span className="block truncate text-xs text-adm-muted">{LEAD_TYPE_LABEL[l.type]} · {l.status === "nuovo" ? "da gestire" : l.status.replace("_", " ")}</span>
+                    </Link>
+                  ))}
+                  {appuntamenti.slice(0, 4).map((a) => (
+                    <Link key={a.id} href="/admin/agenda" className="block px-4 py-2.5 transition-colors hover:bg-white/5">
+                      <span className="block truncate text-sm font-medium text-white">{a.type} · {a.clientName}</span>
+                      <span className="block truncate text-xs text-adm-muted">{formatShortDate(a.date)} alle {a.time}</span>
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </Panel>
+          )}
+
           <Panel title="Prezzi">
             <div className="grid gap-3 p-4">
               <Field label="Prezzo di acquisto (€)">

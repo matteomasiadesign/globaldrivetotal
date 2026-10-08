@@ -44,19 +44,19 @@ export function nomeVeicolo(v: Pick<Veicolo, "marca" | "modello" | "targa">) {
 }
 
 /** Come lo stato della scheda economica si riflette sul catalogo pubblico. */
-export function catalogoDaStato(stato: Stato): { status: CarStatus; hidden?: boolean } {
+export function catalogoDaStato(stato: Stato): { status: CarStatus; hidden?: boolean; featured?: false } {
   switch (stato) {
     case "In vendita":
       return { status: "Disponibile", hidden: false };
     case "Prenotata":
       return { status: "In Trattativa", hidden: false };
     case "Venduta":
-      return { status: "Venduta" };
+      return { status: "Venduta", featured: false };
     case "Archiviata":
     case "In valutazione":
     case "Acquistata":
     case "In preparazione":
-      return { status: "Disponibile", hidden: true };
+      return { status: "Disponibile", hidden: true, featured: false };
   }
 }
 
@@ -170,9 +170,9 @@ export function liquidazioneTrimestre(
   veicoli: Veicolo[],
   movimenti: Movimento[],
   impostazioni: Impostazioni,
-  oggi: string
+  oggi: string,
+  anno: number = impostazioni.annoGestione
 ) {
-  const anno = impostazioni.annoGestione;
   let ivaMargine = 0;
   let ivaCommissioni = 0;
   let ivaDetraibile = 0;
@@ -184,7 +184,7 @@ export function liquidazioneTrimestre(
     else ivaMargine += c.ivaRegimeMargine || 0;
   });
   movimenti.forEach((m) => {
-    if (!m.ivaDetraibile || trimestre(m.data) !== trim || annoNum(m.data) !== anno) return;
+    if (m.tipo !== "Uscita" || !m.ivaDetraibile || trimestre(m.data) !== trim || annoNum(m.data) !== anno) return;
     ivaDetraibile += m.iva;
   });
 
@@ -201,14 +201,27 @@ export function liquidazioneTrimestre(
   };
 }
 
-// Scadenza di versamento di ogni trimestre: [mese, giorno]. Il quarto si paga a
-// marzo dell'anno dopo.
+// Il trimestre si versa dopo la sua chiusura: T1 entro il 18/05, T2 il 20/08, T3 il 16/11,
+// T4 il 16/03 dell'anno dopo. [mese, giorno] della scadenza di ogni trimestre.
 const SCADENZE_VERSAMENTO: Record<number, [number, number]> = {
   1: [5, 18],
   2: [8, 20],
   3: [11, 16],
   4: [3, 16],
 };
+
+const dataScadenzaTrimestre = (trim: number, anno: number) => {
+  const [mese, giorno] = SCADENZE_VERSAMENTO[trim];
+  const a = trim === 4 ? anno + 1 : anno;
+  return `${a}-${String(mese).padStart(2, "0")}-${String(giorno).padStart(2, "0")}`;
+};
+
+/** L'ultimo trimestre chiuso: quello che si sta per versare (a gennaio è il T4 dell'anno prima). */
+export function trimestreDaVersare(oggi: string): { trim: number; anno: number } {
+  const trim = trimestre(oggi) ?? 1;
+  const anno = Number(oggi.slice(0, 4));
+  return trim === 1 ? { trim: 4, anno: anno - 1 } : { trim: trim - 1, anno };
+}
 
 // --- Avvisi ----------------------------------------------------------------
 
@@ -234,33 +247,51 @@ export function computeAvvisi(
     }
   });
 
-  const scaduti = movimenti.filter(
-    (m) => m.statoPagamento === "Da saldare" && m.dataScadenza && m.dataScadenza < oggi
-  );
-  if (scaduti.length > 0) {
+  const scaduti = (tipo: "Entrata" | "Uscita") =>
+    movimenti.filter(
+      (m) => m.tipo === tipo && m.statoPagamento === "Da saldare" && m.dataScadenza && m.dataScadenza < oggi
+    ).length;
+  const incassiScaduti = scaduti("Entrata");
+  const pagamentiScaduti = scaduti("Uscita");
+  if (incassiScaduti > 0) {
     avvisi.push({
       livello: "danger",
       messaggio:
-        scaduti.length === 1
-          ? "1 movimento ha superato la scadenza di pagamento"
-          : `${scaduti.length} movimenti hanno superato la scadenza di pagamento`,
-      href: "/admin/scadenzario",
+        incassiScaduti === 1 ? "1 incasso ha superato la scadenza" : `${incassiScaduti} incassi hanno superato la scadenza`,
+      href: "/admin/scadenzario?tab=incassi",
+    });
+  }
+  if (pagamentiScaduti > 0) {
+    avvisi.push({
+      livello: "danger",
+      messaggio:
+        pagamentiScaduti === 1 ? "1 pagamento ha superato la scadenza" : `${pagamentiScaduti} pagamenti hanno superato la scadenza`,
+      href: "/admin/scadenzario?tab=pagamenti",
     });
   }
 
-  // Liquidazione IVA in scadenza entro 14 giorni (il quarto trimestre, a marzo dell'anno dopo).
-  const anno = Number(oggi.slice(0, 4));
-  const trimAttuale = trimestre(oggi) ?? 1;
-  const [mese, giorno] = SCADENZE_VERSAMENTO[trimAttuale];
-  const annoScadenza = trimAttuale === 4 ? anno + 1 : anno;
-  const dataScadenza = `${annoScadenza}-${String(mese).padStart(2, "0")}-${String(giorno).padStart(2, "0")}`;
+  // Auto vendute con la pratica ancora aperta.
+  veicoli.forEach((v) => {
+    if (v.stato !== "Venduta") return;
+    const mancano = [!v.fatturata && "la fattura", !v.passaggioProprieta && "il passaggio di proprietà"].filter(Boolean);
+    if (mancano.length > 0) {
+      avvisi.push({
+        livello: "warning",
+        messaggio: `${nomeVeicolo(v)} è venduta: manca ${mancano.join(" e ")}`,
+        href: `/admin/auto/${v.id}`,
+      });
+    }
+  });
+
+  // Versamento IVA del trimestre appena chiuso, entro 14 giorni dalla scadenza.
+  const { trim, anno } = trimestreDaVersare(oggi);
   const giorniAllaScadenza = Math.round(
-    (fromDateStr(dataScadenza).getTime() - fromDateStr(oggi).getTime()) / 86_400_000
+    (fromDateStr(dataScadenzaTrimestre(trim, anno)).getTime() - fromDateStr(oggi).getTime()) / 86_400_000
   );
   if (giorniAllaScadenza >= 0 && giorniAllaScadenza <= 14) {
     avvisi.push({
       livello: "warning",
-      messaggio: `La liquidazione IVA del trimestre scade tra ${giorniAllaScadenza} giorni`,
+      messaggio: `L'IVA del T${trim} ${anno} va versata entro ${giorniAllaScadenza === 0 ? "oggi" : `${giorniAllaScadenza} giorni`}`,
       href: "/admin/iva",
     });
   }

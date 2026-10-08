@@ -6,6 +6,7 @@ import { useAdmin } from "@/context/AdminContext";
 import { LEAD_TYPE_LABEL } from "@/lib/admin/constants";
 import type { Lead, LeadType } from "@/types/lead";
 import LeadRow from "../LeadRow";
+import { useUrlState } from "../useUrlState";
 import { EmptyState, FilterTabs, PageHeader, type TabOption } from "../ui/Layout";
 import { inputCls } from "../ui/styles";
 
@@ -37,7 +38,8 @@ export default function LeadsView({ initialTab }: { initialTab?: LeadTab }) {
   const count = (tab: LeadTab) => leads.filter((l) => matchesTab(l, tab)).length;
 
   // Si apre dove c'è lavoro da fare: prima le nuove, poi quelle in corso.
-  const [tab, setTab] = useState<LeadTab>(
+  const [tab, setTab] = useUrlState<LeadTab>(
+    "stato",
     initialTab ?? (count("nuovo") > 0 ? "nuovo" : count("in_gestione") > 0 ? "in_gestione" : "chiuse")
   );
   const [query, setQuery] = useState("");

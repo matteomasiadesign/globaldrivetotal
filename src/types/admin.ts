@@ -40,7 +40,8 @@ export type DocumentCategory =
   | "Garanzia & Assicurazione"
   | "Altro";
 
-export type DocumentSource = "google_drive" | "generated_html" | "local_pdf";
+// "upload" = file caricato nell'archivio dei documenti (lib/storage/vehicleFiles.ts).
+export type DocumentSource = "google_drive" | "generated_html" | "local_pdf" | "upload";
 
 export interface VehicleDocument {
   id: string;
@@ -51,6 +52,9 @@ export interface VehicleDocument {
   source: DocumentSource;
   fileUrl?: string; // Link al file Google Drive o risorsa interna
   driveFolderUrl?: string;
+  /** Percorso del file caricato nell'archivio (source = "upload"). */
+  storagePath?: string;
+  fileName?: string;
   fileSize?: string;
   dateAdded: string;
   notes?: string;

@@ -1,13 +1,15 @@
 "use client";
 
-import React, { useState } from "react";
+import React from "react";
 import Link from "next/link";
 import { AlertCircle } from "lucide-react";
 import { useAdmin } from "@/context/AdminContext";
 import { useGestionale } from "@/context/GestionaleContext";
+import { formatDate } from "@/lib/admin/dates";
 import { euro } from "@/lib/gestionale/calc";
 import { computeAvvisiRent, giorniNoleggio, importoPrenotazione, nomeRentVeicolo } from "@/lib/gestionale/rent";
 import { Stat } from "../ui/Data";
+import { useUrlState } from "../useUrlState";
 import { FilterTabs, PageHeader, Panel, type TabOption } from "../ui/Layout";
 import Calendario from "./noleggio/Calendario";
 import Flotta from "./noleggio/Flotta";
@@ -33,7 +35,8 @@ function Panoramica() {
     const v = noleggio.veicoli.find((x) => x.id === id);
     return v ? nomeRentVeicolo(v) : "Auto eliminata";
   };
-  const nomeCliente = (id: string | null) => contatti.find((c) => c.id === id)?.nome || "Cliente non indicato";
+  const nomeCliente = (p: { contattoId: string | null; clienteNomeLibero: string }) =>
+    contatti.find((c) => c.id === p.contattoId)?.nome || p.clienteNomeLibero || "Cliente non indicato";
 
   return (
     <>
@@ -54,7 +57,7 @@ function Panoramica() {
                 <div key={p.id} className="px-4 py-3">
                   <p className="truncate text-sm font-medium text-white">{nomeAuto(p.veicoloId)}</p>
                   <p className="truncate text-sm text-adm-muted">
-                    {p.stato === "In corso" ? "In corso" : "Prenotata"} · {nomeCliente(p.contattoId)} · {p.dataInizio} → {p.dataFine} ({giorniNoleggio(p.dataInizio, p.dataFine)} gg)
+                    {p.stato === "In corso" ? "In corso" : "Prenotata"} · {nomeCliente(p)} · {formatDate(p.dataInizio)} → {formatDate(p.dataFine)} ({giorniNoleggio(p.dataInizio, p.dataFine)} gg)
                   </p>
                 </div>
               ))}
@@ -83,7 +86,7 @@ function Panoramica() {
 
 export default function NoleggioView({ initialTab = "panoramica" }: { initialTab?: NoleggioTab }) {
   const { noleggio } = useGestionale();
-  const [tab, setTab] = useState<NoleggioTab>(initialTab);
+  const [tab, setTab] = useUrlState<NoleggioTab>("tab", initialTab);
 
   const tabs: TabOption<NoleggioTab>[] = [
     { id: "panoramica", label: "Panoramica" },

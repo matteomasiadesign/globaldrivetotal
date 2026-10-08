@@ -1,0 +1,19 @@
+{
+  "name": "Global Drive Gestionale",
+  "short_name": "Global Drive",
+  "description": "Gestionale di Global Drive Srls: parco auto, conti, contratti e noleggio.",
+  "lang": "it",
+  "id": "/admin",
+  "start_url": "/admin",
+  "scope": "/admin",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#070b16",
+  "theme_color": "#070b16",
+  "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

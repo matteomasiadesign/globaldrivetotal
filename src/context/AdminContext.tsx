@@ -6,8 +6,10 @@ import React, {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
+import { deleteVehicleFile } from "@/lib/storage/vehicleFiles";
 import { useCars } from "@/context/CarContext";
 import { initialAppointments, initialDocuments, initialLeads } from "@/data/adminMock";
 import { toDateStr } from "@/lib/admin/dates";
@@ -49,6 +51,8 @@ interface AdminContextValue {
   addDocument: (data: NewDocument) => void;
   deleteDocument: (id: string) => void;
   deleteDocumentsOfCar: (carId: string) => void;
+  /** Sposta il dossier da un'auto a un'altra chiave (es. all'uscita dal catalogo passa alla scheda economica). */
+  reassignDocuments: (fromId: string, toId: string) => void;
 
   resetDemoData: () => void;
 }
@@ -174,15 +178,31 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
     setDocuments((prev) => [item, ...prev]);
   }, []);
 
+  // Serve a sapere quali file caricati vanno cancellati insieme ai documenti.
+  const documentsRef = useRef(documents);
+  useEffect(() => {
+    documentsRef.current = documents;
+  }, [documents]);
+
   const deleteDocument = useCallback((id: string) => {
+    const doc = documentsRef.current.find((d) => d.id === id);
+    if (doc?.storagePath) void deleteVehicleFile(doc.storagePath);
     setDocuments((prev) => prev.filter((d) => d.id !== id));
   }, []);
 
+  const reassignDocuments = useCallback((fromId: string, toId: string) => {
+    setDocuments((prev) => prev.map((d) => (d.carId === fromId ? { ...d, carId: toId } : d)));
+  }, []);
+
   const deleteDocumentsOfCar = useCallback((carId: string) => {
+    documentsRef.current
+      .filter((d) => d.carId === carId && d.storagePath)
+      .forEach((d) => void deleteVehicleFile(d.storagePath as string));
     setDocuments((prev) => prev.filter((d) => d.carId !== carId));
   }, []);
 
   const resetDemoData = useCallback(() => {
+    documentsRef.current.forEach((d) => d.storagePath && void deleteVehicleFile(d.storagePath));
     resetToDefault();
     setLeads(initialLeads);
     setAppointments(initialAppointments);
@@ -207,6 +227,7 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
       addDocument,
       deleteDocument,
       deleteDocumentsOfCar,
+      reassignDocuments,
       resetDemoData,
     }),
     [
@@ -225,6 +246,7 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
       addDocument,
       deleteDocument,
       deleteDocumentsOfCar,
+      reassignDocuments,
       resetDemoData,
     ]
   );

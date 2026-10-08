@@ -1,7 +1,9 @@
 "use client";
 
 import React, { useState } from "react";
+import { useAdmin } from "@/context/AdminContext";
 import { useGestionale } from "@/context/GestionaleContext";
+import { euro, nomeVeicolo } from "@/lib/gestionale/calc";
 import { TIPI_CONTATTO, type TipoContatto } from "@/lib/gestionale/types";
 import Drawer from "../ui/Drawer";
 import { Field, Section } from "../ui/Field";
@@ -12,16 +14,20 @@ import { useToast } from "../ui/Toast";
 export interface ContattoEditorOptions {
   /** Contatto da modificare; se assente se ne crea uno nuovo. */
   contattoId?: string;
+  /** Richiesta da cui nasce il contatto: la richiesta ricorderà il collegamento. */
+  leadId?: string;
   /** Dati con cui precompilare un nuovo contatto (es. da una richiesta). */
   prefill?: { nome?: string; telefono?: string; email?: string; note?: string };
 }
 
 export default function ContattoDrawer({
   contattoId,
+  leadId,
   prefill,
   onClose,
 }: ContattoEditorOptions & { onClose: () => void }) {
-  const { contatti, addContatto, updateContatto } = useGestionale();
+  const { updateLead } = useAdmin();
+  const { contatti, veicoli, movimenti, noleggio, addContatto, updateContatto } = useGestionale();
   const toast = useToast();
   const esistente = contatti.find((c) => c.id === contattoId);
 
@@ -54,7 +60,8 @@ export default function ContattoDrawer({
       updateContatto(esistente.id, dati);
       toast("Contatto aggiornato");
     } else {
-      addContatto(dati);
+      const creato = addContatto(dati);
+      if (leadId) updateLead(leadId, { contattoId: creato.id });
       toast(`${dati.nome} salvato in anagrafica`);
     }
     onClose();
@@ -106,6 +113,35 @@ export default function ContattoDrawer({
           <input value={f.numeroDocumento} onChange={(e) => set("numeroDocumento", e.target.value)} className={inputCls} />
         </Field>
       </Section>
+
+      {esistente && (
+        <Section title="Collegato a" columns={1}>
+          <ul className="space-y-1 text-sm text-slate-300">
+            {veicoli.filter((v) => v.acquirenteId === esistente.id).map((v) => (
+              <li key={v.id}>Ha acquistato: {nomeVeicolo(v)}</li>
+            ))}
+            {veicoli.filter((v) => v.fornitoreId === esistente.id).map((v) => (
+              <li key={v.id}>Ci ha venduto: {nomeVeicolo(v)}</li>
+            ))}
+            {(() => {
+              const suoi = movimenti.filter((m) => m.contattoId === esistente.id);
+              return suoi.length > 0 ? (
+                <li>
+                  {suoi.length} {suoi.length === 1 ? "movimento" : "movimenti"} · {euro(suoi.reduce((s, m) => s + (m.tipo === "Entrata" ? m.totale : -m.totale), 0))} di saldo
+                </li>
+              ) : null;
+            })()}
+            {noleggio.prenotazioni.filter((p) => p.contattoId === esistente.id).length > 0 && (
+              <li>{noleggio.prenotazioni.filter((p) => p.contattoId === esistente.id).length} prenotazioni di noleggio</li>
+            )}
+            {veicoli.every((v) => v.acquirenteId !== esistente.id && v.fornitoreId !== esistente.id) &&
+              !movimenti.some((m) => m.contattoId === esistente.id) &&
+              !noleggio.prenotazioni.some((p) => p.contattoId === esistente.id) && (
+                <li className="text-adm-muted">Ancora nessun collegamento.</li>
+              )}
+          </ul>
+        </Section>
+      )}
 
       <Section title="Note" columns={1}>
         <textarea rows={3} value={f.note} onChange={(e) => set("note", e.target.value)} className={textareaCls} aria-label="Note" />

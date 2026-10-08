@@ -55,11 +55,11 @@ export function Stat({
   const body = (
     <>
       <p className="text-sm text-adm-muted">{label}</p>
-      <p className={`mt-1 text-2xl font-semibold tabular-nums ${tone ?? "text-white"}`}>{value}</p>
+      <p className={`mt-1 truncate text-xl font-semibold tabular-nums sm:text-2xl ${tone ?? "text-white"}`}>{value}</p>
       {hint && <p className="mt-1 truncate text-xs text-adm-muted">{hint}</p>}
     </>
   );
-  const cls = "rounded-xl border border-adm-line bg-adm-surface p-4";
+  const cls = "min-w-0 rounded-xl border border-adm-line bg-adm-surface p-4";
   return href ? (
     <Link href={href} className={`${cls} block transition-colors hover:border-white/20`}>
       {body}

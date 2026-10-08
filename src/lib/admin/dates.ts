@@ -35,6 +35,12 @@ export function formatShortDate(dateStr: string): string {
   });
 }
 
+/** "1 mar 2026": per le liste contabili, che attraversano più anni. Vuota se non c'è la data. */
+export function formatDate(dateStr: string): string {
+  if (!dateStr) return "";
+  return fromDateStr(dateStr).toLocaleDateString("it-IT", { day: "numeric", month: "short", year: "numeric" });
+}
+
 export function formatLongDate(d: Date): string {
   return d.toLocaleDateString("it-IT", {
     weekday: "long",

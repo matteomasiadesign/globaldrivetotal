@@ -9,6 +9,8 @@ interface DrawerProps {
   subtitle?: string;
   submitLabel: string;
   submitDisabled?: boolean;
+  /** Salvataggio in corso: Esc, sfondo e «Annulla» non chiudono il pannello. */
+  busy?: boolean;
   onSubmit: () => void;
   onClose: () => void;
   /** Classe di larghezza massima, es. "max-w-xl". */
@@ -24,21 +26,35 @@ export default function Drawer({
   subtitle,
   submitLabel,
   submitDisabled,
+  busy = false,
   onSubmit,
   onClose,
   width = "max-w-lg",
   children,
 }: DrawerProps) {
   const titleId = useId();
+  const formRef = useRef<HTMLFormElement>(null);
   const closeRef = useRef(onClose);
+  const busyRef = useRef(busy);
 
   useEffect(() => {
     closeRef.current = onClose;
+    busyRef.current = busy;
   });
+
+  // Apre col focus dentro il pannello (se un campo non l'ha già preso) e lo restituisce a chiusura.
+  useEffect(() => {
+    const previous = document.activeElement as HTMLElement | null;
+    const form = formRef.current;
+    if (form && !form.contains(document.activeElement)) {
+      (form.querySelector<HTMLElement>("input:not([type=hidden]), select, textarea") ?? form).focus();
+    }
+    return () => previous?.focus?.();
+  }, []);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") closeRef.current();
+      if (e.key === "Escape" && !busyRef.current) closeRef.current();
     };
     window.addEventListener("keydown", onKey);
     const prevOverflow = document.body.style.overflow;
@@ -53,10 +69,31 @@ export default function Drawer({
     <div className="fixed inset-0 z-50 flex justify-end">
       <div
         className="adm-fade-in absolute inset-0 bg-black/60"
-        onClick={onClose}
+        onClick={() => !busy && onClose()}
         aria-hidden="true"
       />
       <form
+        ref={formRef}
+        tabIndex={-1}
+        // Tab non esce dal pannello: dall'ultimo elemento si torna al primo e viceversa.
+        onKeyDown={(e) => {
+          if (e.key !== "Tab") return;
+          const campi = Array.from(
+            e.currentTarget.querySelectorAll<HTMLElement>(
+              'a[href], button:not([disabled]), input:not([disabled]):not([type=hidden]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+            )
+          );
+          if (campi.length === 0) return;
+          const primo = campi[0];
+          const ultimo = campi[campi.length - 1];
+          if (e.shiftKey && (document.activeElement === primo || document.activeElement === e.currentTarget)) {
+            e.preventDefault();
+            ultimo.focus();
+          } else if (!e.shiftKey && document.activeElement === ultimo) {
+            e.preventDefault();
+            primo.focus();
+          }
+        }}
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
@@ -76,6 +113,7 @@ export default function Drawer({
           <button
             type="button"
             onClick={onClose}
+            disabled={busy}
             className={btnIcon}
             aria-label="Chiudi"
           >
@@ -86,7 +124,7 @@ export default function Drawer({
         <div className="flex-1 space-y-6 overflow-y-auto px-5 py-5">{children}</div>
 
         <footer className="flex items-center justify-end gap-2 border-t border-adm-line bg-adm-surface px-5 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
-          <button type="button" onClick={onClose} className={btnSecondary}>
+          <button type="button" onClick={onClose} disabled={busy} className={btnSecondary}>
             Annulla
           </button>
           <button type="submit" disabled={submitDisabled} className={btnPrimary}>

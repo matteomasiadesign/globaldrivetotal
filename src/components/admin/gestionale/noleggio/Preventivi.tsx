@@ -3,6 +3,7 @@
 import React, { useState } from "react";
 import { CheckCircle2, FileText, Plus, Trash2 } from "lucide-react";
 import { useGestionale } from "@/context/GestionaleContext";
+import { formatDate } from "@/lib/admin/dates";
 import { euro } from "@/lib/gestionale/calc";
 import {
   CATEGORIE_VEICOLO,
@@ -45,6 +46,10 @@ function PreventivoDrawer({ onClose }: { onClose: () => void }) {
   function submit() {
     if (f.dataFine < f.dataInizio) {
       toast("La data di fine non può precedere quella di inizio");
+      return;
+    }
+    if (tariffa <= 0) {
+      toast("Manca la tariffa: scegli un'auto o imposta una tariffa di periodo per la categoria");
       return;
     }
     addPreventivo({
@@ -155,7 +160,7 @@ export default function Preventivi() {
               <div className="min-w-0 flex-1 basis-56">
                 <span className="block truncate font-medium text-white">{nomeCliente(p)}</span>
                 <span className="block truncate text-sm text-adm-muted">
-                  {nomeAuto(p)} · {p.dataInizio} → {p.dataFine} · {p.giorni} gg × {euro(p.tariffaApplicata)}
+                  {nomeAuto(p)} · {formatDate(p.dataInizio)} → {formatDate(p.dataFine)} · {p.giorni} gg × {euro(p.tariffaApplicata)}
                 </span>
               </div>
               <span className="min-w-20 text-right font-semibold tabular-nums text-white">{euro(p.totale)}</span>

@@ -1,8 +1,9 @@
 "use client";
 
-import React, { useState } from "react";
+import React from "react";
 import { BookOpen, Percent } from "lucide-react";
 import { useAdmin } from "@/context/AdminContext";
+import { formatDate } from "@/lib/admin/dates";
 import { useGestionale } from "@/context/GestionaleContext";
 import {
   PERIODI_IVA,
@@ -13,6 +14,7 @@ import {
   nomeVeicolo,
 } from "@/lib/gestionale/calc";
 import { Note, SummaryRow } from "../ui/Data";
+import { useUrlState } from "../useUrlState";
 import { EmptyState, FilterTabs, PageHeader, type TabOption } from "../ui/Layout";
 import { tableWrap, tdCls, thCls } from "../ui/styles";
 
@@ -55,7 +57,7 @@ function Liquidazione() {
             <SummaryRow label="IVA detraibile sui costi" value={`− ${euro(r.ivaDetraibile)}`} />
             <div className="my-2 border-t border-adm-line" />
             <SummaryRow label="Saldo base" value={euro(r.saldoBase)} />
-            <SummaryRow label={`Maggiorazione (${(impostazioni.maggiorazioneTrimestrale * 100).toFixed(0)}%)`} value={euro(r.maggiorazione)} />
+            <SummaryRow label={`Maggiorazione (${Math.round(impostazioni.maggiorazioneTrimestrale * 10000) / 100}%)`} value={euro(r.maggiorazione)} />
             <div className="my-2 border-t border-adm-line" />
             <div className="flex items-baseline justify-between">
               <span className="text-sm font-medium text-white">Da versare</span>
@@ -88,7 +90,9 @@ function RegistroVendite() {
       const contoVendita = v.servizio === "Conto vendita";
       return {
         v,
-        imponibile: contoVendita ? calc.commissioneImponibile || 0 : calc.margineRegimeIva || 0,
+        imponibile: contoVendita
+          ? calc.commissioneImponibile || 0
+          : (calc.margineRegimeIva || 0) - (calc.ivaRegimeMargine || 0),
         iva: contoVendita ? calc.ivaCommissione || 0 : calc.ivaRegimeMargine || 0,
       };
     })
@@ -115,7 +119,7 @@ function RegistroVendite() {
           <tbody className="divide-y divide-adm-line">
             {righe.map(({ v, imponibile, iva }) => (
               <tr key={v.id}>
-                <td className={`${tdCls} tabular-nums`}>{v.dataVendita}</td>
+                <td className={`${tdCls} whitespace-nowrap tabular-nums`}>{formatDate(v.dataVendita)}</td>
                 <td className={tdCls}>{v.numeroFattura || "—"}</td>
                 <td className={`${tdCls} font-medium text-white`}>{nomeVeicolo(v)}</td>
                 <td className={`${tdCls} text-adm-muted`}>{v.servizio}</td>
@@ -160,7 +164,7 @@ function RegistroAcquisti() {
           <tbody className="divide-y divide-adm-line">
             {righe.map((m) => (
               <tr key={m.id}>
-                <td className={`${tdCls} tabular-nums`}>{m.data}</td>
+                <td className={`${tdCls} whitespace-nowrap tabular-nums`}>{formatDate(m.data)}</td>
                 <td className={tdCls}>{m.numeroDocumento || "—"}</td>
                 <td className={tdCls}>{m.fornitoreCliente || "—"}</td>
                 <td className={`${tdCls} text-adm-muted`}>{m.categoria}</td>
@@ -179,7 +183,7 @@ function RegistroAcquisti() {
 
 export default function IvaView({ initialTab = "liquidazione" }: { initialTab?: IvaTab }) {
   const { impostazioni } = useGestionale();
-  const [tab, setTab] = useState<IvaTab>(initialTab);
+  const [tab, setTab] = useUrlState<IvaTab>("tab", initialTab);
   const tabs: TabOption<IvaTab>[] = [
     { id: "liquidazione", label: "Liquidazione" },
     { id: "vendite", label: "Registro vendite" },

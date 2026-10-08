@@ -57,6 +57,10 @@ export interface Veicolo {
   id: string;
   /** Auto del catalogo pubblico a cui è collegata (stato e visibilità si sincronizzano). */
   carId: string | null;
+  /** Da chi è stata acquistata (anagrafica). */
+  fornitoreId: string | null;
+  /** A chi è stata venduta (anagrafica): lo imposta il contratto di vendita. */
+  acquirenteId: string | null;
   marca: string;
   modello: string;
   targa: string;
@@ -82,6 +86,8 @@ export interface Movimento {
   id: string;
   data: string;
   autoId: string | null;
+  /** Fornitore o cliente in anagrafica; `fornitoreCliente` resta il nome in chiaro. */
+  contattoId: string | null;
   descrizione: string;
   fornitoreCliente: string;
   tipo: TipoMovimento;

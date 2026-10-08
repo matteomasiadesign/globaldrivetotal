@@ -18,7 +18,7 @@ import { useGestionale } from "@/context/GestionaleContext";
 import { isOpenAppointment } from "@/lib/admin/constants";
 import { formatLongDate, greeting, timeAgo } from "@/lib/admin/dates";
 import { getDossier } from "@/lib/admin/documents";
-import { annoNum, computeAvvisi, computeVeicolo, euro, liquidazioneTrimestre, trimestre } from "@/lib/gestionale/calc";
+import { annoNum, computeAvvisi, computeVeicolo, euro, liquidazioneTrimestre, trimestreDaVersare } from "@/lib/gestionale/calc";
 import { computeAvvisiRent } from "@/lib/gestionale/rent";
 import { useEditors } from "../AdminEditors";
 import AppointmentRow from "../AppointmentRow";
@@ -122,7 +122,8 @@ export default function TodayView() {
   const capitaleInStock = conti
     .filter(({ v }) => v.stato !== "Venduta" && v.stato !== "Archiviata" && v.servizio !== "Conto vendita")
     .reduce((s, { c }) => s + c.costoTotale, 0);
-  const ivaDaVersare = liquidazioneTrimestre(trimestre(today) ?? 1, veicoli, movimenti, impostazioni, today).totale;
+  const daVersare = trimestreDaVersare(today);
+  const ivaDaVersare = liquidazioneTrimestre(daVersare.trim, veicoli, movimenti, impostazioni, today, daVersare.anno).totale;
 
   const firstName = (user?.name ?? "").split(" ")[0];
   const attentionCount = overdue.length + hiddenCars.length + incompleteDossiers.length + avvisi.length;
@@ -219,7 +220,7 @@ export default function TodayView() {
 
           <div className="mt-6">
             <Panel
-              title={`Conti ${impostazioni.annoGestione}`}
+              title={`Andamento ${impostazioni.annoGestione}`}
               action={
                 <Link href="/admin/analisi" className="text-sm text-blue-400 hover:text-blue-300">
                   Apri analisi
@@ -230,7 +231,13 @@ export default function TodayView() {
                 <SummaryRow label="Incassi registrati" value={euro(ricavi)} />
                 <SummaryRow label="Risultato delle auto vendute" value={euro(risultatoVendite)} tone={signedText(risultatoVendite)} />
                 <SummaryRow label="Capitale in stock" value={euro(capitaleInStock)} />
-                <SummaryRow label="IVA del trimestre da versare" value={euro(ivaDaVersare)} />
+                <SummaryRow
+                  label="Auto in giacenza per servizio"
+                  value={(["Vendita diretta", "Auto su commissione", "Conto vendita"] as const)
+                    .map((servizio) => `${conti.filter(({ v }) => v.servizio === servizio && v.stato !== "Venduta" && v.stato !== "Archiviata").length} ${servizio === "Vendita diretta" ? "dirette" : servizio === "Conto vendita" ? "conto vendita" : "su commissione"}`)
+                    .join(" · ")}
+                />
+                <SummaryRow label={`IVA da versare (T${daVersare.trim} ${daVersare.anno})`} value={euro(ivaDaVersare)} />
               </div>
             </Panel>
           </div>

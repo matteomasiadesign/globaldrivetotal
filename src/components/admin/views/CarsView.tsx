@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { Calculator, CalendarPlus, Car as CarIcon, FolderOpen, Pencil, Plus, Search, Star, Trash2 } from "lucide-react";
+import { Calculator, CalendarPlus, Car as CarIcon, FolderOpen, Pencil, Plus, Receipt, Search, Star, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useAdmin } from "@/context/AdminContext";
 import { useCars } from "@/context/CarContext";
@@ -12,6 +12,7 @@ import { eur } from "@/lib/admin/constants";
 import { computeVeicolo, euro, nomeVeicolo } from "@/lib/gestionale/calc";
 import type { Car, CarStatus } from "@/types/car";
 import { useEditors } from "../AdminEditors";
+import { useUrlState } from "../useUrlState";
 import { StatoPill } from "../ui/Data";
 import { Switch } from "../ui/Field";
 import { EmptyState, FilterTabs, PageHeader, Panel, type TabOption } from "../ui/Layout";
@@ -50,16 +51,24 @@ const GRID =
 function CarRow({ car }: { car: Car }) {
   const router = useRouter();
   const toast = useToast();
-  const { toggleHidden, toggleFeatured, deleteCar } = useCars();
-  const { deleteDocumentsOfCar, today } = useAdmin();
-  const { veicoli, movimenti, impostazioni, schedaDellAuto, cambiaStatoCatalogo, scollegaAuto } =
-    useGestionale();
+  const { toggleFeatured, deleteCar } = useCars();
+  const { deleteDocumentsOfCar, reassignDocuments, today } = useAdmin();
+  const {
+    veicoli,
+    movimenti,
+    impostazioni,
+    schedaDellAuto,
+    cambiaStatoCatalogo,
+    impostaVisibilita,
+    scollegaAuto,
+  } = useGestionale();
   const { openCar, openAppointment } = useEditors();
 
   const hidden = Boolean(car.hidden);
   const name = `${car.brand} ${car.model}`;
   const scheda = veicoli.find((v) => v.carId === car.id);
-  const costo = scheda ? computeVeicolo(scheda, movimenti, impostazioni, today).costoTotale : 0;
+  const conti = scheda ? computeVeicolo(scheda, movimenti, impostazioni, today) : null;
+  const costo = conti?.costoTotale ?? 0;
 
   return (
     <div className={`relative grid grid-cols-2 gap-x-4 gap-y-3 px-4 py-3 ${GRID}`}>
@@ -85,7 +94,17 @@ function CarRow({ car }: { car: Car }) {
 
       <div>
         <p className="font-medium tabular-nums text-white">{eur(car.price)}</p>
-        {costo > 0 && <p className="text-xs tabular-nums text-adm-muted">costo {euro(costo)}</p>}
+        {costo > 0 && (
+          <p className="text-xs tabular-nums text-adm-muted">
+            costo {euro(costo)}
+            {conti?.risultatoDopoIva != null && (
+              <span className={conti.risultatoDopoIva >= 0 ? "text-emerald-400" : "text-rose-400"}>
+                {" "}
+                · risultato {euro(conti.risultatoDopoIva)}
+              </span>
+            )}
+          </p>
+        )}
       </div>
 
       <select
@@ -106,7 +125,7 @@ function CarRow({ car }: { car: Car }) {
         <Switch
           compact
           checked={!hidden}
-          onChange={() => toggleHidden(car.id)}
+          onChange={() => impostaVisibilita(car.id, !hidden)}
           label={hidden ? `Rendi visibile ${name} nel catalogo` : `Nascondi ${name} dal catalogo`}
         />
       </div>
@@ -142,9 +161,14 @@ function CarRow({ car }: { car: Car }) {
           items={[
             { label: "Modifica scheda", icon: Pencil, onSelect: () => openCar(car.id) },
             {
-              label: "Conti e contratto",
+              label: "Scheda economica e contratto",
               icon: Calculator,
               onSelect: () => router.push(`/admin/auto/${schedaDellAuto(car).id}`),
+            },
+            {
+              label: "Movimenti",
+              icon: Receipt,
+              onSelect: () => router.push(`/admin/movimenti?auto=${schedaDellAuto(car).id}`),
             },
             {
               label: "Documenti",
@@ -163,12 +187,17 @@ function CarRow({ car }: { car: Car }) {
               label: "Elimina auto",
               icon: Trash2,
               danger: true,
-              confirm: "Conferma: elimina anche i documenti",
+              confirm: "Conferma: toglie l'auto dal sito",
               onSelect: () => {
                 scollegaAuto(car.id);
                 deleteCar(car.id);
-                deleteDocumentsOfCar(car.id);
-                toast(scheda ? `${name} eliminata dal catalogo: la scheda dei conti resta archiviata` : `${name} eliminata`);
+                if (scheda) reassignDocuments(car.id, scheda.id);
+                else deleteDocumentsOfCar(car.id);
+                toast(
+                  scheda
+                    ? `${name} eliminata dal catalogo: la scheda economica e i documenti restano archiviati`
+                    : `${name} eliminata`
+                );
               },
             },
           ]}
@@ -183,7 +212,7 @@ export default function CarsView({ initialFilter }: { initialFilter?: CarFilter 
   const { cars } = useCars();
   const { veicoli, addVeicolo } = useGestionale();
   const { openCar } = useEditors();
-  const [filter, setFilter] = useState<CarFilter>(initialFilter ?? "tutte");
+  const [filter, setFilter] = useUrlState<CarFilter>("filtro", initialFilter ?? "tutte");
   const [query, setQuery] = useState("");
 
   const count = (f: CarFilter) => cars.filter((c) => matches(c, f)).length;
@@ -198,10 +227,16 @@ export default function CarsView({ initialFilter }: { initialFilter?: CarFilter 
   const q = query.trim().toLowerCase();
   const visible = cars
     .filter((c) => matches(c, filter))
-    .filter((c) => !q || `${c.brand} ${c.model} ${c.version} ${c.year}`.toLowerCase().includes(q));
+    .filter(
+      (c) =>
+        !q ||
+        `${c.brand} ${c.model} ${c.version} ${c.year} ${veicoli.find((v) => v.carId === c.id)?.targa ?? ""}`
+          .toLowerCase()
+          .includes(q)
+    );
 
   // Schede dei conti senza un'auto nel catalogo: appena acquistate, in preparazione o archiviate.
-  const fuoriCatalogo = veicoli.filter((v) => !v.carId);
+  const fuoriCatalogo = veicoli.filter((v) => !v.carId || !cars.some((c) => c.id === v.carId));
 
   return (
     <>
@@ -235,7 +270,7 @@ export default function CarsView({ initialFilter }: { initialFilter?: CarFilter 
             type="search"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Cerca marca o modello…"
+            placeholder="Cerca marca, modello o targa…"
             aria-label="Cerca auto"
             className={`${inputCls} pl-9 sm:w-60`}
           />
@@ -292,7 +327,7 @@ export default function CarsView({ initialFilter }: { initialFilter?: CarFilter 
                   <span className="min-w-0 flex-1">
                     <span className="block truncate font-medium text-white">{nomeVeicolo(v)}</span>
                     <span className="block truncate text-sm text-adm-muted">
-                      {v.versione || "Scheda dei conti senza pubblicazione sul sito"}
+                      {v.versione || "Scheda economica senza pubblicazione sul sito"}
                     </span>
                   </span>
                   <StatoPill stato={v.stato} />

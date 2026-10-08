@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -179,6 +179,26 @@ function Frame({ children }: { children: React.ReactNode }) {
   const pathname = usePathname() ?? "";
   const groups = useNavGroups();
   const [moreOpen, setMoreOpen] = useState(false);
+  const sheetRef = useRef<HTMLDivElement>(null);
+  const moreBtnRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (!moreOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setMoreOpen(false);
+        moreBtnRef.current?.focus();
+      }
+    };
+    document.addEventListener("keydown", onKey);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    sheetRef.current?.querySelector<HTMLElement>("a, button")?.focus();
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prev;
+    };
+  }, [moreOpen]);
 
   const all = groups.flatMap((g) => g.items);
   const primary = all.slice(0, PRIMARY_COUNT);
@@ -259,7 +279,9 @@ function Frame({ children }: { children: React.ReactNode }) {
         <div className="fixed inset-0 z-40 lg:hidden">
           <div className="adm-fade-in absolute inset-0 bg-black/60" onClick={() => setMoreOpen(false)} aria-hidden="true" />
           <div
+            ref={sheetRef}
             role="dialog"
+            aria-modal="true"
             aria-label="Tutte le sezioni"
             className="adm-rise absolute inset-x-0 bottom-0 max-h-[80vh] overflow-y-auto rounded-t-2xl border-t border-adm-line bg-adm-surface px-4 pb-24 pt-4"
           >
@@ -337,6 +359,7 @@ function Frame({ children }: { children: React.ReactNode }) {
           );
         })}
         <button
+          ref={moreBtnRef}
           type="button"
           onClick={() => setMoreOpen((o) => !o)}
           aria-expanded={moreOpen}

@@ -7,6 +7,7 @@ import { isOpenAppointment } from "@/lib/admin/constants";
 import { addDays, formatDayLabel, formatShortDate, fromDateStr } from "@/lib/admin/dates";
 import type { Appointment } from "@/types/admin";
 import { useEditors } from "../AdminEditors";
+import { useUrlState } from "../useUrlState";
 import AgendaCalendar from "../AgendaCalendar";
 import AppointmentRow from "../AppointmentRow";
 import { EmptyState, FilterTabs, PageHeader, type TabOption } from "../ui/Layout";
@@ -21,7 +22,7 @@ export default function AgendaView({ initialTab }: { initialTab?: AgendaTab }) {
   const { appointments, today } = useAdmin();
   const { openAppointment } = useEditors();
 
-  const [tab, setTab] = useState<AgendaTab>(initialTab ?? "prossimi");
+  const [tab, setTab] = useUrlState<AgendaTab>("tab", initialTab ?? "prossimi");
   const [day, setDay] = useState<string | null>(null);
 
   const upcoming = appointments
