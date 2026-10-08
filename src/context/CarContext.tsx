@@ -1,13 +1,13 @@
 "use client";
 
-import React, { createContext, useContext, useEffect, useState } from "react";
+import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
 import { Car } from "@/types/car";
 import { initialCars } from "@/data/cars";
 import { deleteCarPhoto } from "@/lib/storage/carPhotos";
 
 interface CarContextType {
   cars: Car[];
-  addCar: (car: Omit<Car, "id" | "createdAt">) => void;
+  addCar: (car: Omit<Car, "id" | "createdAt">) => Car;
   updateCar: (id: string, updated: Partial<Car>) => void;
   deleteCar: (id: string) => void;
   toggleFeatured: (id: string) => void;
@@ -50,20 +50,21 @@ export function CarProvider({ children }: { children: React.ReactNode }) {
     }
   }, [cars, isLoaded]);
 
-  const addCar = (newCarData: Omit<Car, "id" | "createdAt">) => {
+  const addCar = (newCarData: Omit<Car, "id" | "createdAt">): Car => {
     const newCar: Car = {
       ...newCarData,
       id: `car-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
       createdAt: new Date().toISOString().split("T")[0],
     };
     setCars((prev) => [newCar, ...prev]);
+    return newCar;
   };
 
-  const updateCar = (id: string, updated: Partial<Car>) => {
+  const updateCar = useCallback((id: string, updated: Partial<Car>) => {
     setCars((prev) =>
       prev.map((c) => (c.id === id ? { ...c, ...updated } : c))
     );
-  };
+  }, []);
 
   const deleteCar = (id: string) => {
     // Le foto di un'auto eliminata non devono restare nello storage.

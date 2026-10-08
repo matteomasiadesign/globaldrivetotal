@@ -133,7 +133,7 @@ export const initialCars: Car[] = [
     category: "SUV",
     images: ["/demo/cars/jeep-renegade.jpg"],
     featured: false,
-    status: "Disponibile",
+    status: "Venduta",
     description:
       "SUV compatto dal carattere inconfondibile, in allestimento Limited ben accessoriato. Diesel economico e robusto, adatto sia alla città sia ai lunghi viaggi.",
     features: [

@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Il vecchio gestionale (Next 14) resta solo come riferimento finché non viene eliminato.
+    "gestionale-auto-nextjs/**",
   ]),
 ]);
 

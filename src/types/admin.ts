@@ -55,35 +55,3 @@ export interface VehicleDocument {
   dateAdded: string;
   notes?: string;
 }
-
-export interface DocumentTemplate {
-  id: string;
-  name: string;
-  badge: string;
-  description: string;
-  filePattern: string;
-  placeholders: string[];
-  status: "Pronto per Integrazione HTML" | "In Bozza";
-}
-
-export interface SaleDocumentDraft {
-  buyerName: string;
-  buyerTaxCode: string;
-  buyerAddress: string;
-  buyerPhone: string;
-  buyerEmail: string;
-  carId: string;
-  plateNumber: string;
-  vinNumber: string;
-  salePrice: number;
-  depositAmount: number;
-  balanceAmount: number;
-  paymentMethod: string;
-  tradeInModel?: string;
-  tradeInValue?: number;
-  warrantyDuration: string;
-  deliveryDate: string;
-  templateType: string;
-  notes?: string;
-}
-

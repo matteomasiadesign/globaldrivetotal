@@ -22,6 +22,7 @@ npm run lint
 | Sito pubblico (home, catalogo, servizi) | Funziona, ma legge sempre le auto demo di `src/data/cars.ts` |
 | Parco auto in admin | **Finto**: salvato in `localStorage` del browser (`CarContext`). Le modifiche non arrivano ai clienti |
 | Agenda, documenti e richieste in admin | **Finti**: `localStorage` + dati di `src/data/adminMock.ts` (stato in `src/context/AdminContext.tsx`) |
+| Gestionale (conti, IVA, contatti, noleggio, contratti) | **Funziona ma è in `localStorage`**: dati demo di `src/data/gestionaleMock.ts`, stato in `src/context/GestionaleContext.tsx`. Nessun dato è condiviso tra browser |
 | Login admin | **Finto**: accetta qualsiasi credenziale, nessuna protezione reale su `/admin` |
 | **Lead dal sito** | **Reali** (vedi sotto): salvati dal server |
 | Pagina "Richieste" in admin | **Finta**: mostra lead demo con la stessa forma di quelli reali (`Lead`), non legge ancora quelli salvati |
@@ -35,9 +36,21 @@ Ogni sezione è una rotta con un solo compito; `src/app/admin/layout.tsx` mette 
 | `/admin` | Cosa richiede attenzione oggi: richieste nuove, agenda del giorno, cose da sistemare | `views/TodayView` |
 | `/admin/richieste` | Smistare i lead: chiama / WhatsApp (la richiesta passa a "in gestione") / fissa in agenda | `views/LeadsView` |
 | `/admin/agenda` | Appuntamenti per giorno e calendario mensile; conferma, completa, sposta | `views/AgendaView` |
-| `/admin/auto` | Prezzo, stato, visibilità nel catalogo e vetrina in home | `views/CarsView` |
-| `/admin/documenti` | Dossier per auto (cosa manca) e contratto di vendita | `views/DocumentsView` |
+| `/admin/auto` | Prezzo, stato, visibilità nel catalogo e vetrina in home; costo di ogni auto; schede fuori catalogo | `views/CarsView` |
+| `/admin/auto/[id]` | Scheda economica: dati, prezzi, movimenti, conto economico (margine, IVA, ROI), contratto di vendita | `gestionale/VeicoloView` |
+| `/admin/documenti` | Dossier per auto (cosa manca) e contratto di vendita in PDF | `views/DocumentsView` |
+| `/admin/movimenti` | Libro cassa e banca: entrate e uscite, collegate a un'auto o generali | `gestionale/MovimentiView` |
+| `/admin/scadenzario` | Incassi e pagamenti da saldare, per scadenza | `gestionale/ScadenzarioView` |
+| `/admin/iva` | Liquidazione trimestrale, registro vendite, registro acquisti (`?tab=`) | `gestionale/IvaView` |
+| `/admin/banca` | Riconciliazione dei movimenti con l'estratto conto | `gestionale/BancaView` |
+| `/admin/analisi` | Vendite per mese, costi fissi/variabili e break-even (`?tab=`) | `gestionale/AnalisiView` |
+| `/admin/contatti` | Anagrafica unica di clienti, fornitori e clienti del noleggio | `gestionale/ContattiView` |
+| `/admin/noleggio` | Global Rent: panoramica, prenotazioni, calendario, preventivi, flotta, tariffe (`?tab=`) | `gestionale/NoleggioView` |
 | `/admin/sito` | Contatti, orari, social, testi di home/servizi/chi siamo, numeri e recensioni | `views/SiteView` |
+| `/admin/impostazioni` | Aliquota IVA, soglie, numerazione contratti, PEC | `gestionale/ImpostazioniView` |
+| `/admin/storico` | Chi ha creato, modificato o eliminato cosa | `gestionale/StoricoView` |
+
+**Il gestionale è il cardine del backoffice.** Ogni auto del catalogo ha una scheda economica (`Veicolo`, collegata con `carId`): lo stato scelto lì (o nel parco auto) decide cosa mostra il sito (`catalogoDaStato` in `src/lib/gestionale/calc.ts`), e il contratto di vendita segna l'auto venduta e salva il cliente in anagrafica. Le formule (costo, margine, IVA, ROI, liquidazione) sono funzioni pure in `src/lib/gestionale/calc.ts`; il noleggio in `rent.ts`; il PDF del contratto in `contractPdf.ts`. Ragione sociale, P.IVA, sede e contatti del venditore nei contratti si leggono da `/admin/sito`. Il gestionale originale (Next 14 + Supabase) è documentato in `docs/gestionale-originale/` con i suoi schemi SQL, utili quando si scriverà il database.
 
 Creazione e modifica avvengono in pannelli laterali (`AppointmentDrawer`, `CarDrawer`, ...) apribili da qualunque pagina via `useEditors()`. I filtri iniziali si passano dall'URL (`?stato=`, `?tab=`, `?filtro=`, `?auto=`). Componenti base in `src/components/admin/ui/`.
 | Casper | Risposte locali simulate; Gemini si attiva solo con `GEMINI_API_KEY` |
@@ -216,7 +229,7 @@ Da valutare più avanti:
 
 Ordine concordato. Il punto 3 (lead) è fatto, con i residui elencati sopra.
 
-1. [ ] **Database e persistenza**: applicare lo schema, spostare auto/agenda/documenti da `localStorage`, foto su bucket Supabase (oggi l'admin le carica dal PC, le comprime nel browser e le tiene come data URL nel `localStorage`: riscrivere solo `uploadCarPhoto`/`deleteCarPhoto` in `src/lib/storage/carPhotos.ts` e aggiungere l'host del bucket in `images.remotePatterns` di `next.config.ts`).
+1. [ ] **Database e persistenza**: applicare lo schema, spostare auto/agenda/documenti e il gestionale (`src/context/GestionaleContext.tsx`: veicoli, movimenti, contatti, impostazioni, noleggio, storico) da `localStorage`; il gestionale si porta cambiando solo lettura iniziale e salvataggio, vedi gli schemi in `docs/gestionale-originale/supabase/`, foto su bucket Supabase (oggi l'admin le carica dal PC, le comprime nel browser e le tiene come data URL nel `localStorage`: riscrivere solo `uploadCarPhoto`/`deleteCarPhoto` in `src/lib/storage/carPhotos.ts` e aggiungere l'host del bucket in `images.remotePatterns` di `next.config.ts`).
 2. [ ] **Autenticazione admin**: login reale, `proxy.ts` che protegge `/admin`, ruoli, "Password dimenticata?" oggi è solo testo. Rimuovere credenziali precompilate e "Accesso Rapido" da `AdminLogin.tsx`.
 3. [x] **Lead dal sito** (form + Casper): vedi sezione dedicata.
 4. [ ] **Pagine auto e SEO**: `/catalogo/[slug]` renderizzata lato server (oggi catalogo solo client, nessun URL condivisibile), `robots`, `sitemap`, Open Graph, dati strutturati (`AutoDealer`, `Vehicle`), `not-found`, `error`, `loading`.

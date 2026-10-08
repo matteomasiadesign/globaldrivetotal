@@ -15,18 +15,17 @@ import {
 } from "lucide-react";
 import { useAdmin } from "@/context/AdminContext";
 import { useCars } from "@/context/CarContext";
+import { useGestionale } from "@/context/GestionaleContext";
 import { REQUIRED_DOCUMENT_CATEGORIES, eur } from "@/lib/admin/constants";
 import { getDossier } from "@/lib/admin/documents";
 import { formatShortDate } from "@/lib/admin/dates";
-import type { DocumentCategory, SaleDocumentDraft, VehicleDocument } from "@/types/admin";
+import type { DocumentCategory, VehicleDocument } from "@/types/admin";
 import type { Car } from "@/types/car";
-import ContractDrawer from "../ContractDrawer";
+import { useEditors } from "../AdminEditors";
 import DocumentLinkDrawer from "../DocumentLinkDrawer";
-import DocumentPreviewModal from "../DocumentPreviewModal";
 import { EmptyState, PageHeader, Panel, Pill } from "../ui/Layout";
 import RowMenu from "../ui/RowMenu";
 import { btnPrimary, btnSecondary, focusRing, inputCls } from "../ui/styles";
-import { useToast } from "../ui/Toast";
 
 const docText = (d: VehicleDocument) =>
   `${d.title} ${d.category} ${d.notes ?? ""}`.toLowerCase();
@@ -192,8 +191,9 @@ export default function DocumentsView({
   onlyIncomplete?: boolean;
 }) {
   const { cars } = useCars();
-  const { documents, addDocument } = useAdmin();
-  const toast = useToast();
+  const { documents } = useAdmin();
+  const { schedaDellAuto } = useGestionale();
+  const { openContratto } = useEditors();
 
   const [selectedId, setSelectedId] = useState<string | null>(
     cars.some((c) => c.id === initialCarId) ? (initialCarId ?? null) : null
@@ -201,8 +201,6 @@ export default function DocumentsView({
   const [query, setQuery] = useState("");
   const [onlyIncomplete, setOnlyIncomplete] = useState(initialIncomplete);
   const [linking, setLinking] = useState<{ carId: string; category?: DocumentCategory } | null>(null);
-  const [contractCar, setContractCar] = useState<Car | null>(null);
-  const [preview, setPreview] = useState<{ draft: SaleDocumentDraft; car: Car } | null>(null);
 
   const q = query.trim().toLowerCase();
   // La ricerca guarda sia l'auto sia i titoli, i tipi e le note dei suoi documenti.
@@ -223,21 +221,6 @@ export default function DocumentsView({
   // su telefono si parte dall'elenco e si apre il dossier con un tocco.
   const activeCar =
     cars.find((c) => c.id === selectedId) ?? (selectedId === null ? list[0] : undefined);
-
-  function saveContract(draft: SaleDocumentDraft, car: Car) {
-    addDocument({
-      carId: car.id,
-      carTitle: `${car.brand} ${car.model}`,
-      title: `Contratto di vendita - ${draft.buyerName}`,
-      category: "Contratto di Vendita",
-      source: "generated_html",
-      // Non si salvano i dati personali dell'acquirente (codice fiscale, indirizzo):
-      // il dossier tiene solo il riferimento.
-      notes: `Acquirente ${draft.buyerName} · ${eur(draft.salePrice)}`,
-    });
-    toast("Contratto salvato nel dossier");
-    setContractCar(null);
-  }
 
   if (cars.length === 0) {
     return (
@@ -345,7 +328,7 @@ export default function DocumentsView({
               car={activeCar}
               query={q}
               onLink={(category) => setLinking({ carId: activeCar.id, category })}
-              onContract={() => setContractCar(activeCar)}
+              onContract={() => openContratto(schedaDellAuto(activeCar).id)}
             />
           ) : (
             <EmptyState icon={Cloud} title="Scegli un'auto per vedere il suo dossier" />
@@ -358,21 +341,6 @@ export default function DocumentsView({
           carId={linking.carId}
           category={linking.category}
           onClose={() => setLinking(null)}
-        />
-      )}
-      {contractCar && (
-        <ContractDrawer
-          car={contractCar}
-          onPreview={(draft) => setPreview({ draft, car: contractCar })}
-          onClose={() => setContractCar(null)}
-        />
-      )}
-      {preview && (
-        <DocumentPreviewModal
-          draft={preview.draft}
-          car={preview.car}
-          onClose={() => setPreview(null)}
-          onSaveToVehicleDossier={saveContract}
         />
       )}
     </>

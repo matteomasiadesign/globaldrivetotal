@@ -22,3 +22,10 @@ export const textareaCls =
 export const card = "rounded-xl border border-adm-line bg-adm-surface";
 
 export { focusRing };
+
+// Tabelle dei dati contabili.
+export const tableWrap = "overflow-x-auto rounded-xl border border-adm-line bg-adm-surface";
+export const thCls =
+  "whitespace-nowrap px-3 py-2.5 text-left text-xs font-medium text-adm-muted";
+export const tdCls = "px-3 py-2.5 align-middle text-sm text-slate-200";
+export const rowDivider = "divide-y divide-adm-line";

@@ -2,6 +2,7 @@
 
 import React, { useMemo, useState } from "react";
 import { useCars } from "@/context/CarContext";
+import { useGestionale } from "@/context/GestionaleContext";
 import { deleteCarPhoto, uploadCarPhoto } from "@/lib/storage/carPhotos";
 import type {
   CarStatus,
@@ -62,6 +63,7 @@ export default function CarDrawer({
   onClose: () => void;
 }) {
   const { cars, addCar, updateCar } = useCars();
+  const { veicoli, updateVeicolo, schedaDellAuto, cambiaStatoCatalogo } = useGestionale();
   const toast = useToast();
   const car = cars.find((c) => c.id === carId);
 
@@ -145,11 +147,23 @@ export default function CarDrawer({
       location: form.location.trim(),
     };
 
+    // Ogni auto del catalogo ha la sua scheda dei conti: dati tecnici e stato restano allineati.
     if (car) {
       updateCar(car.id, data);
+      const scheda = veicoli.find((v) => v.carId === car.id);
+      if (scheda) {
+        updateVeicolo(scheda.id, {
+          marca: data.brand,
+          modello: data.model,
+          versione: data.version,
+          chilometraggio: data.mileage,
+          alimentazione: data.fuel,
+        });
+        if (data.status !== car.status) cambiaStatoCatalogo(car.id, data.status);
+      }
       toast(`${data.brand} ${data.model} aggiornata`);
     } else {
-      addCar(data);
+      schedaDellAuto(addCar(data));
       toast(`${data.brand} ${data.model} aggiunta al parco auto`);
     }
     onClose();

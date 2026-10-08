@@ -8,9 +8,11 @@ import {
   MessageCircle,
   Phone,
   RotateCcw,
+  UserPlus,
   XCircle,
 } from "lucide-react";
 import { useAdmin } from "@/context/AdminContext";
+import { useGestionale } from "@/context/GestionaleContext";
 import {
   LEAD_STATUS_LABEL,
   LEAD_TO_APPOINTMENT_TYPE,
@@ -24,7 +26,7 @@ import { telLink, waLink } from "@/lib/admin/phone";
 import type { Lead, LeadStatus } from "@/types/lead";
 import { useEditors } from "./AdminEditors";
 import { Pill, type PillTone } from "./ui/Layout";
-import RowMenu from "./ui/RowMenu";
+import RowMenu, { type MenuItem } from "./ui/RowMenu";
 import { btnIcon, btnSecondary } from "./ui/styles";
 import { useToast } from "./ui/Toast";
 
@@ -44,7 +46,8 @@ export default function LeadRow({
   compact?: boolean;
 }) {
   const { now, appointments, updateLead } = useAdmin();
-  const { openAppointment } = useEditors();
+  const { openAppointment, openContatto } = useEditors();
+  const { contatti } = useGestionale();
   const toast = useToast();
   const [expanded, setExpanded] = useState(false);
 
@@ -52,6 +55,26 @@ export default function LeadRow({
   const booked = appointments.find(
     (a) => a.leadId === lead.id && isOpenAppointment(a.status)
   );
+
+  // Chi scrive va in anagrafica con un clic, a meno che il numero ci sia già.
+  const cifre = (p: string) => p.replace(/D/g, "");
+  const salvaInAnagrafica: MenuItem[] = contatti.some((c) => cifre(c.telefono) === cifre(lead.phone))
+    ? []
+    : [
+        {
+          label: "Salva in anagrafica",
+          icon: UserPlus,
+          onSelect: () =>
+            openContatto({
+              prefill: {
+                nome: lead.name,
+                telefono: lead.phone,
+                email: lead.email,
+                note: lead.carLabel ? `Interessato a ${lead.carLabel}` : undefined,
+              },
+            }),
+        },
+      ];
 
   function setStatus(next: LeadStatus, message: string) {
     const previous = lead.status;
@@ -160,8 +183,8 @@ export default function LeadRow({
             </button>
           )}
           <RowMenu
-            items={
-              closed
+            items={[
+              ...(closed
                 ? [
                     {
                       label: "Riapri",
@@ -191,7 +214,9 @@ export default function LeadRow({
                       onSelect: () => setStatus("scartato", "Richiesta scartata"),
                     },
                   ]
-            }
+            ),
+              ...salvaInAnagrafica,
+            ]}
           />
           {!compact && (
             <button
