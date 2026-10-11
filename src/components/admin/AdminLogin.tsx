@@ -21,7 +21,7 @@ export default function AdminLogin() {
     login(
       {
         email: email.trim(),
-        name: email.toLowerCase().includes("admin") ? "Matteo" : "Operatore",
+        name: "Admin",
       },
       remember
     );
