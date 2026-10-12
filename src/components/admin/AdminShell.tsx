@@ -6,18 +6,14 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   BarChart3,
-  BookOpen,
-  CalendarClock,
   CalendarDays,
   Car,
   ChevronsUpDown,
   ExternalLink,
   FolderOpen,
   Globe,
-  History,
   Inbox,
   KeyRound,
-  Landmark,
   LayoutDashboard,
   Lock,
   LogOut,
@@ -69,12 +65,43 @@ function useNavGroups(): NavGroup[] {
   ).length;
 
   // L'operatore non vede le sezioni dei conti (vedi lib/admin/access.ts).
-  return allNavGroups(newLeads, todayOpen, overdue)
+  return allNavGroups(newLeads, todayOpen, overdue, isAdmin)
     .map((g) => ({ ...g, items: g.items.filter((i) => isAdmin || !isAdminOnlyPath(i.href)) }))
     .filter((g) => g.items.length > 0);
 }
 
-function allNavGroups(newLeads: number, todayOpen: number, overdue: number): NavGroup[] {
+// Le pagine raggruppate sotto una sola voce della barra laterale: dentro il gruppo si passa
+// dall'una all'altra con le schede in alto (SchedeSezione). Così la barra resta corta.
+const SEZIONI: { voce: string; pagine: { href: string; label: string }[] }[] = [
+  {
+    voce: "/admin/movimenti",
+    pagine: [
+      { href: "/admin/movimenti", label: "Movimenti" },
+      { href: "/admin/scadenzario", label: "Scadenzario" },
+      { href: "/admin/banca", label: "Banca" },
+    ],
+  },
+  {
+    voce: "/admin/iva",
+    pagine: [
+      { href: "/admin/iva", label: "IVA" },
+      { href: "/admin/analisi", label: "Analisi" },
+    ],
+  },
+  {
+    voce: "/admin/impostazioni",
+    pagine: [
+      { href: "/admin/impostazioni", label: "Impostazioni" },
+      { href: "/admin/sito", label: "Sito" },
+      { href: "/admin/storico", label: "Storico" },
+    ],
+  },
+];
+
+const sezioneDi = (pathname: string) =>
+  SEZIONI.find((s) => s.pagine.some((p) => pathname === p.href || pathname.startsWith(`${p.href}/`)));
+
+function allNavGroups(newLeads: number, todayOpen: number, overdue: number, isAdmin: boolean): NavGroup[] {
   return [
     {
       items: [
@@ -93,11 +120,9 @@ function allNavGroups(newLeads: number, todayOpen: number, overdue: number): Nav
     {
       title: "Contabilità",
       items: [
-        { href: "/admin/movimenti", label: "Movimenti", icon: Receipt },
-        { href: "/admin/scadenzario", label: "Scadenzario", icon: CalendarClock, badge: overdue },
-        { href: "/admin/iva", label: "IVA", icon: BookOpen },
-        { href: "/admin/banca", label: "Banca", icon: Landmark },
-        { href: "/admin/analisi", label: "Analisi", icon: BarChart3 },
+        // Conti = Movimenti, Scadenzario e Banca; Report = IVA e Analisi (vedi SEZIONI).
+        { href: "/admin/movimenti", label: "Conti", icon: Receipt, badge: overdue },
+        { href: "/admin/iva", label: "Report", icon: BarChart3 },
       ],
     },
     {
@@ -109,17 +134,43 @@ function allNavGroups(newLeads: number, todayOpen: number, overdue: number): Nav
     },
     {
       title: "Sistema",
-      items: [
-        { href: "/admin/sito", label: "Sito", icon: Globe },
-        { href: "/admin/impostazioni", label: "Impostazioni", icon: Settings },
-        { href: "/admin/storico", label: "Storico", icon: History },
-      ],
+      items: isAdmin
+        ? [{ href: "/admin/impostazioni", label: "Impostazioni", icon: Settings }]
+        : [{ href: "/admin/sito", label: "Sito", icon: Globe }],
     },
   ];
 }
 
 function isActive(pathname: string, href: string) {
-  return href === "/admin" ? pathname === href : pathname.startsWith(href);
+  if (href === "/admin") return pathname === href;
+  const sezione = SEZIONI.find((s) => s.voce === href);
+  return sezione ? sezioneDi(pathname) === sezione : pathname.startsWith(href);
+}
+
+/** Schede in alto per passare tra le pagine dello stesso gruppo (Conti, Report, Impostazioni). */
+function SchedeSezione({ pathname, isAdmin }: { pathname: string; isAdmin: boolean }) {
+  const sezione = sezioneDi(pathname);
+  const pagine = sezione?.pagine.filter((p) => isAdmin || !isAdminOnlyPath(p.href)) ?? [];
+  if (pagine.length < 2) return null;
+  return (
+    <nav aria-label="Pagine della sezione" className="no-scrollbar -mt-1 mb-5 flex gap-1 overflow-x-auto border-b border-adm-line">
+      {pagine.map((p) => {
+        const attiva = pathname === p.href || pathname.startsWith(`${p.href}/`);
+        return (
+          <Link
+            key={p.href}
+            href={p.href}
+            aria-current={attiva ? "page" : undefined}
+            className={`-mb-px whitespace-nowrap border-b-2 px-3 py-2.5 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-blue-400 ${
+              attiva ? "border-blue-500 text-white" : "border-transparent text-adm-muted hover:text-white"
+            }`}
+          >
+            {p.label}
+          </Link>
+        );
+      })}
+    </nav>
+  );
 }
 
 function UserMenu({ placement, compact = false }: { placement: "top" | "bottom"; compact?: boolean }) {
@@ -321,7 +372,10 @@ function Frame({ children }: { children: React.ReactNode }) {
               }
             />
           ) : (
-            children
+            <>
+              <SchedeSezione pathname={pathname} isAdmin={isAdmin} />
+              {children}
+            </>
           )}
         </main>
       </div>
