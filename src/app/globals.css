@@ -11,13 +11,48 @@
   --border-glass: rgba(255, 255, 255, 0.08);
 }
 
-/* Palette dell'area admin: superfici piatte, niente vetro né bagliori. */
+/* Palette dell'area admin. `acc` è il colore della gestione aperta: blu per Global Drive,
+   viola per Global Rent (data-attivita su <html>, lo imposta AdminShell). */
 @theme {
   --color-adm-bg: #070b16;
   --color-adm-surface: #0d1324;
   --color-adm-raised: #141c33;
   --color-adm-line: rgb(255 255 255 / 0.08);
   --color-adm-muted: #8a94ad;
+
+  --color-acc-200: oklch(88.2% 0.059 254.128);
+  --color-acc-300: oklch(80.9% 0.105 251.813);
+  --color-acc-400: oklch(70.7% 0.165 254.624);
+  --color-acc-500: oklch(62.3% 0.214 259.815);
+  --color-acc-600: oklch(54.6% 0.245 262.881);
+}
+
+[data-attivita="Noleggio"] {
+  --color-acc-200: oklch(89.4% 0.057 293.283);
+  --color-acc-300: oklch(81.1% 0.111 293.571);
+  --color-acc-400: oklch(70.2% 0.183 293.541);
+  --color-acc-500: oklch(60.6% 0.25 292.717);
+  --color-acc-600: oklch(54.1% 0.281 293.009);
+}
+
+/* Sfondo dell'area admin: un alone appena accennato del colore della gestione. */
+.adm-backdrop {
+  background:
+    radial-gradient(60rem 30rem at 85% -10%, color-mix(in oklch, var(--color-acc-500) 12%, transparent), transparent 70%),
+    radial-gradient(40rem 24rem at -10% 110%, color-mix(in oklch, var(--color-acc-600) 7%, transparent), transparent 70%),
+    var(--color-adm-bg);
+  background-attachment: fixed;
+}
+
+/* Barre sospese: vetro scuro con bordo sottile e ombra morbida. */
+.adm-float {
+  background: color-mix(in oklch, var(--color-adm-surface) 78%, transparent);
+  -webkit-backdrop-filter: blur(18px) saturate(140%);
+  backdrop-filter: blur(18px) saturate(140%);
+  border: 1px solid rgb(255 255 255 / 0.08);
+  box-shadow:
+    0 1px 0 rgb(255 255 255 / 0.04) inset,
+    0 18px 40px -12px rgb(0 0 0 / 0.6);
 }
 
 @keyframes adm-slide-in {
@@ -61,6 +96,22 @@
 
 .adm-rise {
   animation: adm-rise 0.18s ease-out;
+}
+
+/* Ingresso del contenuto a ogni cambio di pagina o di gestione. */
+@keyframes adm-page {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.adm-page {
+  animation: adm-page 0.22s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .no-scrollbar {
@@ -127,7 +178,8 @@
 
   .adm-slide-in,
   .adm-fade-in,
-  .adm-rise {
+  .adm-rise,
+  .adm-page {
     animation: none;
   }
 

@@ -56,7 +56,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
                   t.action?.onClick();
                   dismiss(t.id);
                 }}
-                className="cursor-pointer font-semibold text-blue-400 hover:text-blue-300"
+                className="cursor-pointer font-semibold text-acc-400 hover:text-acc-300"
               >
                 {t.action.label}
               </button>

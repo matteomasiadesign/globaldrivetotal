@@ -23,7 +23,7 @@ interface Voce {
 
 /** Le pagine dell'admin, per saltarci scrivendo il nome. */
 const PAGINE: [string, string][] = [
-  ["/admin", "Oggi"],
+  ["/admin", "Global Drive · Oggi"],
   ["/admin/richieste", "Richieste"],
   ["/admin/agenda", "Agenda"],
   ["/admin/auto", "Parco auto"],
@@ -34,7 +34,12 @@ const PAGINE: [string, string][] = [
   ["/admin/banca", "Banca"],
   ["/admin/analisi", "Analisi"],
   ["/admin/contatti", "Contatti"],
-  ["/admin/noleggio", "Noleggio"],
+  ["/admin/noleggio", "Global Rent · Oggi"],
+  ["/admin/noleggio/prenotazioni", "Prenotazioni noleggio"],
+  ["/admin/noleggio/calendario", "Calendario noleggio"],
+  ["/admin/noleggio/preventivi", "Preventivi noleggio"],
+  ["/admin/noleggio/flotta", "Auto a noleggio (flotta)"],
+  ["/admin/noleggio/tariffe", "Tariffe noleggio"],
   ["/admin/sito", "Sito"],
   ["/admin/impostazioni", "Impostazioni"],
   ["/admin/storico", "Storico"],
@@ -178,7 +183,7 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
                   aria-selected={i === attiva}
                   onMouseEnter={() => setAttiva(i)}
                   onClick={() => esegui(v)}
-                  className={`flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2 text-sm ${i === attiva ? "bg-blue-600/20 text-white" : "text-slate-200"}`}
+                  className={`flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2 text-sm ${i === attiva ? "bg-acc-600/20 text-white" : "text-slate-200"}`}
                 >
                   <Icon className="size-4 shrink-0 text-adm-muted" />
                   <span className="min-w-0 flex-1 truncate">

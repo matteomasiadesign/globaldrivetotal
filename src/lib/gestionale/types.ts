@@ -2,6 +2,15 @@
 // Le formule che li usano stanno in calc.ts. Le date sono sempre "YYYY-MM-DD",
 // stringa vuota se non impostate.
 
+/**
+ * Le due attività della società: Global Drive (vendita di auto usate) e Global Rent (noleggio).
+ * Un veicolo è assegnato a una delle due e può passare dall'una all'altra; ogni movimento è
+ * etichettato con l'attività a cui appartiene. La contabilità (IVA, banca) resta unica.
+ */
+export type Attivita = "Vendita" | "Noleggio";
+export const ATTIVITA: Attivita[] = ["Vendita", "Noleggio"];
+export const NOME_ATTIVITA: Record<Attivita, string> = { Vendita: "Global Drive", Noleggio: "Global Rent" };
+
 export type Servizio = "Vendita diretta" | "Conto vendita" | "Auto su commissione";
 export type Stato =
   | "In valutazione"
@@ -63,6 +72,8 @@ export interface Veicolo {
   fornitoreId: string | null;
   /** A chi è stata venduta (anagrafica): lo imposta il contratto di vendita. */
   acquirenteId: string | null;
+  /** Vendita = parco auto di Global Drive; Noleggio = flotta di Global Rent (vedi RentVeicolo). */
+  attivita: Attivita;
   marca: string;
   modello: string;
   targa: string;
@@ -89,6 +100,8 @@ export interface Veicolo {
 
 export interface Movimento {
   id: string;
+  /** L'attività a cui appartiene: resta quella anche se poi l'auto cambia attività. */
+  attivita: Attivita;
   data: string;
   autoId: string | null;
   /** Fornitore o cliente in anagrafica; `fornitoreCliente` resta il nome in chiaro. */

@@ -98,7 +98,7 @@ export default function AgendaView({ initialTab }: { initialTab?: AgendaTab }) {
                 aria-pressed={selected}
                 className={`flex cursor-pointer flex-col items-center gap-0.5 rounded-lg border px-1 py-2 transition-colors ${
                   selected
-                    ? "border-blue-500 bg-blue-600/15 text-white"
+                    ? "border-acc-500 bg-acc-600/15 text-white"
                     : "border-adm-line bg-adm-surface text-slate-300 hover:border-white/20"
                 }`}
               >
@@ -107,7 +107,7 @@ export default function AgendaView({ initialTab }: { initialTab?: AgendaTab }) {
                 </span>
                 <span className="text-base font-semibold tabular-nums">{date.getDate()}</span>
                 <span
-                  className={`text-xs tabular-nums ${count ? "font-semibold text-blue-400" : "text-slate-600"}`}
+                  className={`text-xs tabular-nums ${count ? "font-semibold text-acc-400" : "text-slate-600"}`}
                 >
                   {count || "·"}
                 </span>

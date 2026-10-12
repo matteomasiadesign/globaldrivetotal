@@ -116,7 +116,7 @@ export default function DataTable<T>({
       onChange={(e) => scegli(chiave(r), e.target.checked)}
       onClick={(e) => e.stopPropagation()}
       aria-label="Seleziona riga"
-      className="size-4 cursor-pointer accent-blue-600"
+      className="size-4 cursor-pointer accent-acc-600"
     />
   );
   const menu = (r: T) => {
@@ -143,7 +143,7 @@ export default function DataTable<T>({
                     checked={tutteScelte}
                     onChange={(e) => setScelte(e.target.checked ? new Set(righe.map(chiave)) : new Set())}
                     aria-label="Seleziona tutte le righe"
-                    className="size-4 cursor-pointer accent-blue-600"
+                    className="size-4 cursor-pointer accent-acc-600"
                   />
                 </th>
               )}
@@ -180,7 +180,7 @@ export default function DataTable<T>({
               <tr
                 key={chiave(r)}
                 onClick={apribile ? () => onApri?.(r) : undefined}
-                className={`${apribile ? "cursor-pointer hover:bg-white/[0.03]" : ""} ${scelte.has(chiave(r)) ? "bg-blue-500/10" : (classeRiga?.(r) ?? "")}`}
+                className={`${apribile ? "cursor-pointer hover:bg-white/[0.03]" : ""} ${scelte.has(chiave(r)) ? "bg-acc-500/10" : (classeRiga?.(r) ?? "")}`}
               >
                 {selezionabile && <td className="px-3 py-2.5">{casella(r)}</td>}
                 {colonne.map((c) => (
@@ -218,7 +218,7 @@ export default function DataTable<T>({
             <div
               key={chiave(r)}
               onClick={apribile ? () => onApri?.(r) : undefined}
-              className={`flex items-start gap-3 px-4 py-3 ${apribile ? "cursor-pointer" : ""} ${scelte.has(chiave(r)) ? "bg-blue-500/10" : (classeRiga?.(r) ?? "")}`}
+              className={`flex items-start gap-3 px-4 py-3 ${apribile ? "cursor-pointer" : ""} ${scelte.has(chiave(r)) ? "bg-acc-500/10" : (classeRiga?.(r) ?? "")}`}
             >
               {selezionabile && <div className="pt-1">{casella(r)}</div>}
               <div className="min-w-0 flex-1">
@@ -274,7 +274,7 @@ export default function DataTable<T>({
 
       {/* Barra delle azioni in blocco: compare quando si seleziona qualcosa */}
       {selezionate.length > 0 && azioniMultiple && (
-        <div className="sticky bottom-[calc(5.5rem+env(safe-area-inset-bottom))] z-20 flex flex-wrap items-center gap-2 rounded-xl border border-blue-500/40 bg-adm-raised px-3 py-2 shadow-2xl lg:bottom-4">
+        <div className="sticky bottom-[calc(5.5rem+env(safe-area-inset-bottom))] z-20 flex flex-wrap items-center gap-2 rounded-xl border border-acc-500/40 bg-adm-raised px-3 py-2 shadow-2xl lg:bottom-4">
           <span className="px-1 text-sm font-medium text-white">
             {selezionate.length} {selezionate.length === 1 ? "selezionato" : "selezionati"}
           </span>

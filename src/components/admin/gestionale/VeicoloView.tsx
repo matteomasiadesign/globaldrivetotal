@@ -1,10 +1,12 @@
 "use client";
 
-import React from "react";
+import React, { useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
+  ArrowRightLeft,
+  KeyRound,
   CarFront,
   ExternalLink,
   FileText,
@@ -20,8 +22,10 @@ import { formatDate, formatShortDate } from "@/lib/admin/dates";
 import { useCars } from "@/context/CarContext";
 import { useGestionale } from "@/context/GestionaleContext";
 import { computeVeicolo, euro, nomeVeicolo, percento } from "@/lib/gestionale/calc";
-import { ALIMENTAZIONI, SERVIZI, STATI } from "@/lib/gestionale/types";
+import { ALIMENTAZIONI, NOME_ATTIVITA, SERVIZI, STATI } from "@/lib/gestionale/types";
 import { useEditors } from "../AdminEditors";
+import { useAttivita } from "../Attivita";
+import { useSpostaVeicolo } from "../useSpostaVeicolo";
 import { ServizioTag, StatoPill, SummaryRow, signedText } from "../ui/Data";
 import { Field, Switch } from "../ui/Field";
 import { NumberField, SelectField, TextField } from "../ui/Inputs";
@@ -57,8 +61,15 @@ export default function VeicoloView({ veicoloId }: { veicoloId: string }) {
   const { cars } = useCars();
   const { openCar, openMovimento, openContratto, openAppointment } = useEditors();
   const { veicoli, movimenti, contatti, impostazioni, updateVeicolo, deleteVeicolo, deleteMovimento } = useGestionale();
+  const { imposta } = useAttivita();
+  const sposta = useSpostaVeicolo();
 
   const v = veicoli.find((x) => x.id === veicoloId);
+  // La scheda è condivisa: l'admin passa alla gestione a cui l'auto appartiene oggi.
+  const attivitaAuto = v?.attivita;
+  useEffect(() => {
+    if (attivitaAuto) imposta(attivitaAuto);
+  }, [attivitaAuto, imposta]);
   if (!v) {
     return (
       <EmptyState
@@ -81,28 +92,40 @@ export default function VeicoloView({ veicoloId }: { veicoloId: string }) {
   const appuntamenti = appointments.filter((a) => v.carId && a.carId === v.carId && isOpenAppointment(a.status));
   const nome = nomeVeicolo(v);
   const patch = (p: Parameters<typeof updateVeicolo>[1]) => updateVeicolo(v.id, p);
+  const aNoleggio = v.attivita === "Noleggio";
 
   return (
     <>
       <Link
-        href="/admin/auto"
+        href={aNoleggio ? "/admin/noleggio/flotta" : "/admin/auto"}
         className="mb-4 inline-flex items-center gap-2 text-sm text-adm-muted transition-colors hover:text-white"
       >
         <ArrowLeft className="size-4" />
-        Parco auto
+        {aNoleggio ? "Auto a noleggio" : "Parco auto"}
       </Link>
 
       <PageHeader
         title={nome}
         actions={
           <>
-            <button type="button" onClick={() => openContratto(v.id)} className={btnPrimary}>
-              <FileText className="size-4" />
-              Contratto di vendita
-            </button>
+            {aNoleggio ? (
+              // Un'auto a noleggio si vende dopo averla riportata a Global Drive.
+              <button type="button" onClick={() => sposta(v.id, nome, "Vendita")} className={btnSecondary}>
+                <ArrowRightLeft className="size-4" />
+                Sposta in Global Drive
+              </button>
+            ) : (
+              <button type="button" onClick={() => openContratto(v.id)} className={btnPrimary}>
+                <FileText className="size-4" />
+                Contratto di vendita
+              </button>
+            )}
             <RowMenu
               label="Altre azioni"
               items={[
+                ...(aNoleggio
+                  ? []
+                  : [{ label: "Sposta in Global Rent (noleggio)", icon: KeyRound, onSelect: () => sposta(v.id, nome, "Noleggio") }]),
                 ...(car
                   ? [
                       { label: "Modifica scheda pubblica", icon: Pencil, onSelect: () => openCar(car.id) },
@@ -156,9 +179,19 @@ export default function VeicoloView({ veicoloId }: { veicoloId: string }) {
         }
       />
       <div className="-mt-4 mb-6 flex flex-wrap items-center gap-3">
-        <StatoPill stato={v.stato} />
-        <ServizioTag servizio={v.servizio} />
-        {car ? (
+        <span className="inline-flex items-center gap-1.5 rounded-full bg-acc-500/15 px-2.5 py-0.5 text-xs font-semibold text-acc-300 ring-1 ring-inset ring-acc-500/25">
+          {aNoleggio ? <KeyRound className="size-3.5" /> : <CarFront className="size-3.5" />}
+          {NOME_ATTIVITA[v.attivita]}
+        </span>
+        {aNoleggio ? (
+          <span className="text-xs text-adm-muted">In flotta a noleggio: tariffe, km e scadenze si gestiscono da «Auto a noleggio».</span>
+        ) : (
+          <>
+            <StatoPill stato={v.stato} />
+            <ServizioTag servizio={v.servizio} />
+          </>
+        )}
+        {aNoleggio ? null : car ? (
           <span className="text-xs text-adm-muted">
             Nel catalogo a {euro(car.price)}
             {car.hidden ? " · nascosta" : ""}
@@ -166,7 +199,7 @@ export default function VeicoloView({ veicoloId }: { veicoloId: string }) {
         ) : (
           <span className="flex items-center gap-2 text-xs text-adm-muted">
             Non è nel catalogo del sito
-            <button type="button" onClick={() => openCar(undefined, { daVeicoloId: v.id })} className="cursor-pointer text-blue-400 hover:text-blue-300">
+            <button type="button" onClick={() => openCar(undefined, { daVeicoloId: v.id })} className="cursor-pointer text-acc-400 hover:text-acc-300">
               Pubblica sul catalogo
             </button>
           </span>
@@ -177,12 +210,17 @@ export default function VeicoloView({ veicoloId }: { veicoloId: string }) {
         <div className="min-w-0 space-y-6">
           <Panel title="Dati auto">
             <div className="grid gap-3 p-4 sm:grid-cols-3">
-              <Field label="Servizio">
-                <SelectField value={v.servizio} options={SERVIZI} onChange={(servizio) => patch({ servizio })} />
-              </Field>
-              <Field label="Stato" hint={car ? "Aggiorna anche il catalogo del sito." : undefined}>
-                <SelectField value={v.stato} options={STATI} onChange={(stato) => patch({ stato })} />
-              </Field>
+              {/* Servizio e stato sono della vendita: un'auto a noleggio non li usa. */}
+              {!aNoleggio && (
+                <>
+                  <Field label="Servizio">
+                    <SelectField value={v.servizio} options={SERVIZI} onChange={(servizio) => patch({ servizio })} />
+                  </Field>
+                  <Field label="Stato" hint={car ? "Aggiorna anche il catalogo del sito." : undefined}>
+                    <SelectField value={v.stato} options={STATI} onChange={(stato) => patch({ stato })} />
+                  </Field>
+                </>
+              )}
               <Field label="Targa">
                 <TextField value={v.targa} onCommit={(targa) => patch({ targa: targa.toUpperCase() })} className={`${inputCls} uppercase`} />
               </Field>
@@ -225,7 +263,7 @@ export default function VeicoloView({ veicoloId }: { veicoloId: string }) {
               {car ? (
                 <p className="text-sm text-adm-muted sm:col-span-3">
                   {car.brand} {car.model} {car.version} · {car.year} · {car.mileage.toLocaleString("it-IT")} km · {car.fuel}.{" "}
-                  <button type="button" onClick={() => openCar(car.id)} className="cursor-pointer text-blue-400 hover:text-blue-300">
+                  <button type="button" onClick={() => openCar(car.id)} className="cursor-pointer text-acc-400 hover:text-acc-300">
                     Modifica i dati pubblici
                   </button>
                 </p>
@@ -272,11 +310,11 @@ export default function VeicoloView({ veicoloId }: { veicoloId: string }) {
             action={
               <div className="flex items-center gap-4">
                 {mie.length > 0 && (
-                  <Link href={`/admin/movimenti?auto=${v.id}`} className="text-sm text-blue-400 hover:text-blue-300">
+                  <Link href={`/admin/movimenti?auto=${v.id}`} className="text-sm text-acc-400 hover:text-acc-300">
                     Vedi tutti
                   </Link>
                 )}
-                <button type="button" onClick={() => openMovimento({ autoId: v.id })} className="inline-flex cursor-pointer items-center gap-1.5 text-sm text-blue-400 hover:text-blue-300">
+                <button type="button" onClick={() => openMovimento({ autoId: v.id })} className="inline-flex cursor-pointer items-center gap-1.5 text-sm text-acc-400 hover:text-acc-300">
                   <Plus className="size-4" />
                   Aggiungi
                 </button>
@@ -328,7 +366,7 @@ export default function VeicoloView({ veicoloId }: { veicoloId: string }) {
                 <button
                   type="button"
                   onClick={() => openAppointment({ prefill: { carId: car.id, carName: `${car.brand} ${car.model}`, location: car.location } })}
-                  className="inline-flex cursor-pointer items-center gap-1.5 text-sm text-blue-400 hover:text-blue-300"
+                  className="inline-flex cursor-pointer items-center gap-1.5 text-sm text-acc-400 hover:text-acc-300"
                 >
                   <Plus className="size-4" />
                   Fissa

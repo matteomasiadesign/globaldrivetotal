@@ -13,9 +13,12 @@ import {
 import { useGestionale } from "@/context/GestionaleContext";
 import { euro, nomeVeicolo } from "@/lib/gestionale/calc";
 import {
+  ATTIVITA,
   CATEGORIE_MOVIMENTO,
+  NOME_ATTIVITA,
   NATURE_COSTO,
   PAGAMENTI,
+  type Attivita,
   type NaturaCosto,
   type Pagamento,
   type StatoPagamento,
@@ -27,6 +30,7 @@ import { Field, Section, ToggleRow } from "../ui/Field";
 import { SelectField } from "../ui/Inputs";
 import { btnSecondary, inputCls } from "../ui/styles";
 import { useToast } from "../ui/Toast";
+import { useAttivita } from "../Attivita";
 
 export interface MovimentoEditorOptions {
   /** Movimento da modificare; se assente se ne crea uno nuovo. */
@@ -46,6 +50,7 @@ export default function MovimentoDrawer({
 }: MovimentoEditorOptions & { onClose: () => void }) {
   const { today } = useAdmin();
   const { movimenti, veicoli, contatti, impostazioni, addMovimento, updateMovimento, addContatto } = useGestionale();
+  const { attivita: gestioneAperta } = useAttivita();
   const toast = useToast();
   const esistente = movimenti.find((m) => m.id === movimentoId);
   // Da copiare: tutti i campi tranne data, documento, saldo e riconciliazione.
@@ -58,6 +63,8 @@ export default function MovimentoDrawer({
     data: esistente?.data ?? today,
     tipo: (base?.tipo ?? "Uscita") as TipoMovimento,
     autoId: base?.autoId ?? autoId ?? "",
+    // Un movimento nuovo va alla gestione dell'auto, se c'è, altrimenti a quella aperta.
+    attivita: (base?.attivita ?? veicoli.find((v) => v.id === autoId)?.attivita ?? gestioneAperta) as Attivita,
     contattoId: base?.contattoId ?? "",
     descrizione: base?.descrizione ?? "",
     fornitoreCliente: base?.fornitoreCliente ?? "",
@@ -83,6 +90,7 @@ export default function MovimentoDrawer({
     setF((prev) => ({
       ...prev,
       autoId: id,
+      attivita: veicoli.find((v) => v.id === id)?.attivita ?? prev.attivita,
       // Un costo di un'auto è "variabile diretto"; senza auto è un costo generale.
       naturaCosto: id
         ? "Variabile diretto auto"
@@ -123,6 +131,7 @@ export default function MovimentoDrawer({
     // Il file sostituito o tolto non serve più.
     if (esistente?.allegatoPath && esistente.allegatoPath !== allegatoPath) void deleteVehicleFile(esistente.allegatoPath);
     const dati = {
+      attivita: f.attivita,
       data: f.data,
       tipo: f.tipo,
       autoId: f.autoId || null,
@@ -183,8 +192,19 @@ export default function MovimentoDrawer({
             vuoto="— generale —"
             placeholder="Cerca per marca, modello o targa…"
             ariaLabel="Auto"
-            opzioni={veicoli.map((v) => ({ value: v.id, label: nomeVeicolo(v), dettaglio: v.stato }))}
+            opzioni={veicoli.map((v) => ({
+              value: v.id,
+              label: nomeVeicolo(v),
+              dettaglio: v.attivita === "Noleggio" ? NOME_ATTIVITA.Noleggio : v.stato,
+            }))}
             onChange={scegliAuto}
+          />
+        </Field>
+        <Field label="Gestione" className="sm:col-span-2" hint="L'IVA resta unica per la società: serve a separare conti e incassi di vendita e noleggio.">
+          <SelectField
+            value={f.attivita}
+            options={ATTIVITA.map((a) => ({ value: a, label: NOME_ATTIVITA[a] }))}
+            onChange={(v) => set("attivita", v)}
           />
         </Field>
         <Field label="Descrizione" className="sm:col-span-2">

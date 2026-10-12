@@ -158,9 +158,9 @@ export default function ImpostazioniView() {
                     type="button"
                     aria-pressed={attivo}
                     onClick={toggle}
-                    className={`min-h-10 rounded-lg border px-3.5 text-sm transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-400 ${
+                    className={`min-h-10 rounded-lg border px-3.5 text-sm transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-acc-400 ${
                       attivo
-                        ? "border-blue-500 bg-blue-600/20 text-white"
+                        ? "border-acc-500 bg-acc-600/20 text-white"
                         : "border-adm-line text-adm-muted hover:text-slate-200"
                     }`}
                   >
@@ -186,7 +186,7 @@ export default function ImpostazioniView() {
           </div>
           <p className="border-t border-adm-line px-4 py-3 text-sm text-adm-muted">
             Ragione sociale, partita IVA, sede, telefono ed email del venditore si leggono da{" "}
-            <Link href="/admin/sito" className="text-blue-400 hover:text-blue-300">
+            <Link href="/admin/sito" className="text-acc-400 hover:text-acc-300">
               Sito
             </Link>
             : cambiandoli lì cambiano anche nei contratti.

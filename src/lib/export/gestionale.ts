@@ -2,6 +2,7 @@
 // colonne in CSV ed Excel. Le formule sono quelle di calc.ts, quindi i numeri sono
 // gli stessi che si vedono a video.
 
+import { inFlotta } from "@/lib/gestionale/attivita";
 import {
   CATEGORIE_VENDITA,
   PERIODI_IVA,
@@ -23,7 +24,7 @@ import {
   type RentVeicolo,
 } from "@/lib/gestionale/rent";
 import type { Contatto, Movimento, Veicolo } from "@/lib/gestionale/types";
-import { MESI } from "@/lib/gestionale/types";
+import { MESI, NOME_ATTIVITA } from "@/lib/gestionale/types";
 import { foglio, type Foglio } from "./types";
 
 export interface Contesto extends Pick<GestionaleData, "veicoli" | "movimenti" | "contatti" | "impostazioni" | "noleggio"> {
@@ -67,6 +68,7 @@ export function foglioMovimenti(righe: Movimento[], ctx: Contesto, intro?: strin
       { titolo: "Data", formato: "data", valore: (m) => m.data, larghezza: 11 },
       { titolo: "N. documento", valore: (m) => m.numeroDocumento, larghezza: 14 },
       { titolo: "Tipo", valore: (m) => m.tipo },
+      { titolo: "Gestione", valore: (m) => NOME_ATTIVITA[m.attivita], larghezza: 13 },
       { titolo: "Categoria", valore: (m) => m.categoria, larghezza: 24 },
       { titolo: "Natura costo", valore: (m) => m.naturaCosto, larghezza: 20 },
       { titolo: "Descrizione", valore: (m) => m.descrizione, larghezza: 32 },
@@ -547,7 +549,7 @@ export function foglioPrenotazioni(righe: RentPrenotazione[], ctx: Contesto, int
 export function foglioFlotta(ctx: Contesto): Foglio {
   return foglio<RentVeicolo>({
     nome: "Flotta noleggio",
-    righe: ctx.noleggio.veicoli,
+    righe: ctx.noleggio.veicoli.filter((v) => inFlotta(v, ctx.veicoli)),
     colonne: [
       { titolo: "Marca", valore: (v) => v.marca },
       { titolo: "Modello", valore: (v) => v.modello },

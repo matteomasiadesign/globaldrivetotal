@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useState } from "react";
-import { CarFront, Pencil, Plus, Search, Trash2, Upload } from "lucide-react";
+import { ArrowRightLeft, Calculator, CarFront, Pencil, Plus, Search, Trash2, Upload } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { ImportaFlotta } from "../import/Importa";
 import { useAdmin } from "@/context/AdminContext";
 import { useGestionale } from "@/context/GestionaleContext";
@@ -11,6 +12,7 @@ import {
   STATI_VEICOLO_RENT,
   nomeRentVeicolo,
   type CategoriaVeicolo,
+  type NuovoRentVeicolo,
   type RentVeicolo,
   type StatoVeicoloRent,
 } from "@/lib/gestionale/rent";
@@ -22,8 +24,9 @@ import RowMenu from "../../ui/RowMenu";
 import StatoMenu from "../../ui/StatoMenu";
 import { btnPrimary, btnSecondary, focusRing, inputCls, rowDivider, textareaCls } from "../../ui/styles";
 import { useToast } from "../../ui/Toast";
+import { useSpostaVeicolo } from "../../useSpostaVeicolo";
 
-type Draft = Omit<RentVeicolo, "id">;
+type Draft = NuovoRentVeicolo;
 
 function FlottaDrawer({ veicolo, onClose }: { veicolo?: RentVeicolo; onClose: () => void }) {
   const { addRentVeicolo, updateRentVeicolo } = useGestionale();
@@ -116,15 +119,17 @@ function FlottaDrawer({ veicolo, onClose }: { veicolo?: RentVeicolo; onClose: ()
 }
 
 export default function Flotta() {
-  const { today } = useAdmin();
-  const { noleggio, updateRentVeicolo, deleteRentVeicolo } = useGestionale();
+  const { today, isAdmin } = useAdmin();
+  const { noleggio, flotta, updateRentVeicolo, deleteRentVeicolo } = useGestionale();
   const toast = useToast();
+  const router = useRouter();
+  const sposta = useSpostaVeicolo();
   const [editing, setEditing] = useState<{ veicolo?: RentVeicolo; key: number } | null>(null);
   const [query, setQuery] = useState("");
   const [importa, setImporta] = useState(false);
 
   const q = query.trim().toLowerCase();
-  const visibili = noleggio.veicoli.filter((v) => !q || `${v.marca} ${v.modello} ${v.targa}`.toLowerCase().includes(q));
+  const visibili = flotta.filter((v) => !q || `${v.marca} ${v.modello} ${v.targa}`.toLowerCase().includes(q));
   const scaduta = (v: RentVeicolo) =>
     [v.dataRevisione, v.dataBollo, v.dataAssicurazione].some((d) => d && d < today);
 
@@ -156,7 +161,11 @@ export default function Flotta() {
       {importa && <ImportaFlotta onClose={() => setImporta(false)} />}
 
       {visibili.length === 0 ? (
-        <EmptyState icon={CarFront} title="Nessuna auto in flotta" description="Aggiungi le auto che noleggi." />
+        <EmptyState
+          icon={CarFront}
+          title="Nessuna auto in flotta"
+          description="Aggiungi un'auto a noleggio, oppure sposta qui un'auto del parco di Global Drive dal suo menu «…»."
+        />
       ) : (
         <div className={`rounded-xl border border-adm-line bg-adm-surface ${rowDivider}`}>
           {visibili.map((v) => (
@@ -184,11 +193,24 @@ export default function Flotta() {
                 label={`Azioni per ${nomeRentVeicolo(v)}`}
                 items={[
                   { label: "Modifica", icon: Pencil, onSelect: () => setEditing({ veicolo: v, key: Date.now() }) },
+                  // Acquisto, spese e incassi dell'auto stanno nella sua scheda, condivisa con Global Drive.
+                  ...(isAdmin && v.veicoloId
+                    ? [{ label: "Scheda economica", icon: Calculator, onSelect: () => router.push(`/admin/auto/${v.veicoloId}`) }]
+                    : []),
+                  ...(v.veicoloId
+                    ? [
+                        {
+                          label: "Sposta in Global Drive (vendita)",
+                          icon: ArrowRightLeft,
+                          onSelect: () => sposta(v.veicoloId as string, nomeRentVeicolo(v), "Vendita"),
+                        },
+                      ]
+                    : []),
                   {
                     label: "Elimina",
                     icon: Trash2,
                     danger: true,
-                    confirm: "Conferma: elimina anche le prenotazioni",
+                    confirm: "Conferma: elimina auto, prenotazioni e movimenti",
                     onSelect: () => {
                       if (noleggio.prenotazioni.some((p) => p.veicoloId === v.id && p.stato === "In corso")) {
                         toast(`${nomeRentVeicolo(v)} ha un noleggio in corso: concludilo prima di eliminarla`);

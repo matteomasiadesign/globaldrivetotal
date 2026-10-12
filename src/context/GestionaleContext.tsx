@@ -13,6 +13,7 @@ import { defaultImpostazioni } from "@/config/gestionale";
 import { useAdmin } from "@/context/AdminContext";
 import { useCars } from "@/context/CarContext";
 import type { Car, CarStatus } from "@/types/car";
+import { attivitaDedotta, bloccoCambioAttivita, collegaFlotta, inFlotta, STATO_IN_NOLEGGIO } from "@/lib/gestionale/attivita";
 import { annoNum, catalogoDaStato, nomeVeicolo, statoDaCatalogo } from "@/lib/gestionale/calc";
 import type { DatiAcquirente } from "@/lib/gestionale/contractPdf";
 import type { GestionaleData } from "@/lib/gestionale/data";
@@ -28,15 +29,19 @@ import {
   importoPrenotazione,
   nomeRentVeicolo,
   prenotazioneVuota,
+  rentVeicoloVuoto,
   veicoloLiberoNelPeriodo,
   type NuovaPrenotazione,
+  type NuovoRentVeicolo,
   type RentPrenotazione,
   type RentPreventivo,
   type RentTariffa,
   type RentVeicolo,
 } from "@/lib/gestionale/rent";
-import type {
-  AzioneStorico,
+import {
+  NOME_ATTIVITA,
+  type Attivita,
+  type AzioneStorico,
   Contatto,
   Impostazioni,
   Movimento,
@@ -74,6 +79,8 @@ interface GestionaleContextValue {
   impostazioni: Impostazioni;
   storico: VoceStorico[];
   noleggio: GestionaleData["noleggio"];
+  /** Le auto del noleggio assegnate oggi a Global Rent (`noleggio.veicoli` ha anche quelle passate alla vendita). */
+  flotta: RentVeicolo[];
 
   // Schede economiche
   addVeicolo: (data?: NuovoVeicolo) => Veicolo;
@@ -86,6 +93,11 @@ interface GestionaleContextValue {
   cambiaStatoCatalogo: (carId: string, status: CarStatus) => void;
   /** Mostra o nasconde l'auto sul sito e porta la scheda nello stato coerente. */
   impostaVisibilita: (carId: string, hidden: boolean) => void;
+  /**
+   * Passa un veicolo da Global Drive a Global Rent o viceversa. Al noleggio esce dal catalogo ed
+   * entra in flotta; alla vendita torna «In preparazione». Acquisto e spese restano sulla scheda.
+   */
+  assegnaAttivita: (veicoloId: string, attivita: Attivita) => Esito;
   /** L'auto è stata eliminata dal catalogo: la scheda resta, archiviata. */
   scollegaAuto: (carId: string) => void;
   /**
@@ -124,7 +136,8 @@ interface GestionaleContextValue {
 
   updateImpostazioni: (patch: Partial<Impostazioni>) => void;
 
-  addRentVeicolo: (data: Omit<RentVeicolo, "id">) => RentVeicolo;
+  /** Crea l'auto in flotta insieme alla sua scheda nel gestionale (attività Noleggio). */
+  addRentVeicolo: (data: NuovoRentVeicolo) => RentVeicolo;
   updateRentVeicolo: (id: string, patch: Partial<Omit<RentVeicolo, "id">>) => void;
   deleteRentVeicolo: (id: string) => Annulla;
   addPrenotazione: (data: NuovaPrenotazione) => Esito;
@@ -143,7 +156,7 @@ interface GestionaleContextValue {
   /** `aggiorna`: contatti già presenti di cui completare i campi vuoti. */
   importaContatti: (nuovi: NuovoContatto[], aggiorna: { id: string; dati: NuovoContatto }[], file: string) => Annulla;
   importaVeicoli: (righe: NuovoVeicolo[], file: string) => Annulla;
-  importaFlotta: (righe: Omit<RentVeicolo, "id">[], file: string) => Annulla;
+  importaFlotta: (righe: NuovoRentVeicolo[], file: string) => Annulla;
   /** Estratto conto: movimenti abbinati (riconciliati e, se aperti, saldati) e movimenti nuovi. */
   riconciliaEstratto: (
     abbinati: { movimentoId: string; riferimentoEstratto: string; dataSaldo: string }[],
@@ -193,14 +206,31 @@ function normalizza(raw: unknown): GestionaleData | null {
     ...salvate,
     pagamentiBanca: Array.isArray(salvate.pagamentiBanca) ? salvate.pagamentiBanca : defaultImpostazioni.pagamentiBanca,
   };
+  const base: GestionaleData = collegaFlotta(
+    {
+      impostazioni,
+      veicoli: lista<Veicolo>(d.veicoli).map((v) => ({ ...veicoloVuoto(impostazioni), ...v })),
+      movimenti: [],
+      contatti: lista<Contatto>(d.contatti).map((c) => ({ ...contattoVuoto(), ...c })),
+      storico: lista<VoceStorico>(d.storico),
+      noleggio: {
+        veicoli: lista<RentVeicolo>(n.veicoli).map((v) => ({ ...rentVeicoloVuoto(), ...v, veicoloId: v.veicoloId ?? null })),
+        prenotazioni: [],
+        tariffe: [],
+        preventivi: [],
+      },
+    },
+    () => uid("veh")
+  );
+  // I movimenti di prima della separazione Drive/Rent prendono l'attività dall'auto o dalla categoria.
+  const movimenti = lista<Movimento>(d.movimenti).map((m) =>
+    withTotale({ ...movimentoVuoto(""), ...m, attivita: m.attivita ?? attivitaDedotta(m, base.veicoli) })
+  );
   return {
-    impostazioni,
-    veicoli: lista<Veicolo>(d.veicoli).map((v) => ({ ...veicoloVuoto(impostazioni), ...v })),
-    movimenti: lista<Movimento>(d.movimenti).map((m) => withTotale({ ...movimentoVuoto(""), ...m })),
-    contatti: lista<Contatto>(d.contatti).map((c) => ({ ...contattoVuoto(), ...c })),
-    storico: lista<VoceStorico>(d.storico),
+    ...base,
+    movimenti,
     noleggio: {
-      veicoli: lista<RentVeicolo>(n.veicoli),
+      veicoli: base.noleggio.veicoli,
       prenotazioni: lista<RentPrenotazione>(n.prenotazioni).map((p) => ({
         ...prenotazioneVuota,
         ...p,
@@ -365,6 +395,22 @@ const pagamentoDa = (strumento: string): Pagamento =>
 
 const soloCifre = (p: string) => p.replace(/\D/g, "");
 
+/** Toglie la parte di noleggio di un veicolo eliminato: l'auto in flotta, le sue prenotazioni, il legame coi preventivi. */
+function senzaNoleggioDi(d: GestionaleData, veicoloId: string | null, rentId?: string): Pick<GestionaleData, "noleggio"> {
+  const via = new Set(
+    d.noleggio.veicoli.filter((r) => r.id === rentId || (veicoloId && r.veicoloId === veicoloId)).map((r) => r.id)
+  );
+  if (via.size === 0) return { noleggio: d.noleggio };
+  return {
+    noleggio: {
+      ...d.noleggio,
+      veicoli: d.noleggio.veicoli.filter((r) => !via.has(r.id)),
+      prenotazioni: d.noleggio.prenotazioni.filter((p) => !via.has(p.veicoloId)),
+      preventivi: d.noleggio.preventivi.map((p) => (p.veicoloId && via.has(p.veicoloId) ? { ...p, veicoloId: null } : p)),
+    },
+  };
+}
+
 export function GestionaleProvider({ children }: { children: React.ReactNode }) {
   const { user, today, leads, updateLead } = useAdmin();
   const { cars, updateCar } = useCars();
@@ -372,6 +418,11 @@ export function GestionaleProvider({ children }: { children: React.ReactNode }) 
 
   const [ready, setReady] = useState(false);
   const [data, setData] = useState<GestionaleData>(gestionaleVuoto);
+
+  const flotta = useMemo(
+    () => data.noleggio.veicoli.filter((r) => inFlotta(r, data.veicoli)),
+    [data.noleggio.veicoli, data.veicoli]
+  );
 
   // Serve a leggere lo stato più recente dentro le azioni che toccano anche il catalogo.
   const dataRef = useRef(data);
@@ -481,13 +532,15 @@ export function GestionaleProvider({ children }: { children: React.ReactNode }) 
       // Se la vendita viene annullata (torna in uno stato prima della vendita), la data si toglie.
       // Archiviare un'auto venduta invece la tiene: la vendita resta in IVA e analisi.
       const effettivo = { ...patch };
-      if (patch.stato === "Venduta" && current.stato !== "Venduta" && !current.dataVendita && patch.dataVendita === undefined) {
+      // Lo stato di vendita di un'auto a noleggio resta fermo: la si porta prima a Global Drive.
+      if (current.attivita === "Noleggio" && patch.attivita === undefined) delete effettivo.stato;
+      if (effettivo.stato === "Venduta" && current.stato !== "Venduta" && !current.dataVendita && patch.dataVendita === undefined) {
         effettivo.dataVendita = today;
       }
       if (
-        patch.stato &&
-        patch.stato !== "Venduta" &&
-        patch.stato !== "Archiviata" &&
+        effettivo.stato &&
+        effettivo.stato !== "Venduta" &&
+        effettivo.stato !== "Archiviata" &&
         current.stato === "Venduta" &&
         patch.dataVendita === undefined
       ) {
@@ -497,7 +550,20 @@ export function GestionaleProvider({ children }: { children: React.ReactNode }) 
       const toccaAcquisto = "prezzoAcquisto" in effettivo || "fornitoreId" in effettivo || "dataAcquisto" in effettivo;
       edit((d) => {
         const aggiornato = { ...current, ...effettivo };
-        const base = { ...d, veicoli: d.veicoli.map((v) => (v.id === id ? aggiornato : v)) };
+        let base = { ...d, veicoli: d.veicoli.map((v) => (v.id === id ? aggiornato : v)) };
+        // Nome, targa e km valgono anche per la parte di noleggio dell'auto.
+        if (["marca", "modello", "targa", "chilometraggio"].some((k) => k in effettivo)) {
+          const { marca, modello, targa, chilometraggio } = aggiornato;
+          base = {
+            ...base,
+            noleggio: {
+              ...base.noleggio,
+              veicoli: base.noleggio.veicoli.map((r) =>
+                r.veicoloId === id ? { ...r, marca, modello, targa, kmAttuali: Math.max(r.kmAttuali, chilometraggio) } : r
+              ),
+            },
+          };
+        }
         return {
           data: toccaAcquisto ? conAcquisto(base, aggiornato, today) : base,
           log: {
@@ -526,6 +592,7 @@ export function GestionaleProvider({ children }: { children: React.ReactNode }) 
         (d) => ({
           data: {
             ...d,
+            ...senzaNoleggioDi(d, id),
             veicoli: d.veicoli.filter((v) => v.id !== id),
             movimenti: d.movimenti.filter((m) => m.autoId !== id),
           },
@@ -535,6 +602,44 @@ export function GestionaleProvider({ children }: { children: React.ReactNode }) 
       );
     },
     [editAnnullabile]
+  );
+
+  const assegnaAttivita = useCallback<GestionaleContextValue["assegnaAttivita"]>(
+    (veicoloId, attivita) => {
+      const d0 = dataRef.current;
+      const current = d0.veicoli.find((v) => v.id === veicoloId);
+      if (!current) return { ok: false, errore: "Auto non trovata." };
+      if (current.attivita === attivita) return { ok: true };
+      const blocco = bloccoCambioAttivita(current, attivita, d0);
+      if (blocco) return { ok: false, errore: blocco };
+      // Al noleggio l'auto esce dal catalogo; tornando alla vendita va prima preparata.
+      const stato: Veicolo["stato"] = attivita === "Noleggio" ? STATO_IN_NOLEGGIO : "In preparazione";
+      const profilo = d0.noleggio.veicoli.find((r) => r.veicoloId === veicoloId);
+      edit((d) => {
+        const km = Math.max(current.chilometraggio, profilo?.kmAttuali ?? 0);
+        const veicoli = d.veicoli.map((v) => (v.id === veicoloId ? { ...v, attivita, stato, chilometraggio: km } : v));
+        let flottaNuova = d.noleggio.veicoli;
+        if (attivita === "Noleggio") {
+          const dati = { marca: current.marca, modello: current.modello, targa: current.targa, kmAttuali: km };
+          // Se l'auto era già stata a noleggio ritrova categoria, tariffa e scadenze di allora.
+          flottaNuova = profilo
+            ? flottaNuova.map((r) => (r.id === profilo.id ? { ...r, ...dati, stato: "Disponibile" as const } : r))
+            : [{ ...rentVeicoloVuoto(), ...dati, id: uid("rv"), veicoloId }, ...flottaNuova];
+        }
+        return {
+          data: { ...d, veicoli, noleggio: { ...d.noleggio, veicoli: flottaNuova } },
+          log: {
+            tabella: "auto",
+            azione: "Modificato",
+            oggetto: nomeVeicolo(current),
+            dettaglio: `da ${NOME_ATTIVITA[current.attivita]} a ${NOME_ATTIVITA[attivita]}`,
+          },
+        };
+      });
+      if (current.carId) sincronizzaCatalogo(current.carId, stato);
+      return { ok: true };
+    },
+    [edit, sincronizzaCatalogo]
   );
 
   const schedaDellAuto = useCallback<GestionaleContextValue["schedaDellAuto"]>(
@@ -758,7 +863,8 @@ export function GestionaleProvider({ children }: { children: React.ReactNode }) 
 
   const addMovimento = useCallback<GestionaleContextValue["addMovimento"]>(
     (init = {}) => {
-      const item: Movimento = withTotale({ ...movimentoVuoto(today), ...init, id: uid("mov") });
+      const attivita = init.attivita ?? attivitaDedotta({ autoId: init.autoId ?? null, categoria: init.categoria ?? "" }, dataRef.current.veicoli);
+      const item: Movimento = withTotale({ ...movimentoVuoto(today), ...init, attivita, id: uid("mov") });
       edit((d) => ({
         data: { ...d, movimenti: [item, ...d.movimenti] },
         log: { tabella: "movimenti", azione: "Creato", oggetto: item.descrizione || item.categoria },
@@ -892,9 +998,19 @@ export function GestionaleProvider({ children }: { children: React.ReactNode }) 
 
   const addRentVeicolo = useCallback<GestionaleContextValue["addRentVeicolo"]>(
     (init) => {
-      const item: RentVeicolo = { ...init, id: uid("rv") };
+      const scheda: Veicolo = {
+        ...veicoloVuoto(dataRef.current.impostazioni),
+        id: uid("veh"),
+        attivita: "Noleggio",
+        stato: STATO_IN_NOLEGGIO,
+        marca: init.marca,
+        modello: init.modello,
+        targa: init.targa,
+        chilometraggio: init.kmAttuali,
+      };
+      const item: RentVeicolo = { ...init, id: uid("rv"), veicoloId: scheda.id };
       edit((d) => ({
-        data: { ...d, noleggio: { ...d.noleggio, veicoli: [item, ...d.noleggio.veicoli] } },
+        data: { ...d, veicoli: [scheda, ...d.veicoli], noleggio: { ...d.noleggio, veicoli: [item, ...d.noleggio.veicoli] } },
         log: { tabella: "noleggio", azione: "Creato", oggetto: nomeRentVeicolo(item), dettaglio: "auto in flotta" },
       }));
       return item;
@@ -906,10 +1022,23 @@ export function GestionaleProvider({ children }: { children: React.ReactNode }) 
     (id, patch) => {
       const current = dataRef.current.noleggio.veicoli.find((v) => v.id === id);
       if (!current || !hasChanges(current, patch)) return;
+      const aggiornato = { ...current, ...patch };
       edit((d) => ({
         data: {
           ...d,
-          noleggio: { ...d.noleggio, veicoli: d.noleggio.veicoli.map((v) => (v.id === id ? { ...v, ...patch } : v)) },
+          // Nome, targa e km si scrivono anche sulla scheda dell'auto.
+          veicoli: d.veicoli.map((v) =>
+            v.id === current.veicoloId
+              ? {
+                  ...v,
+                  marca: aggiornato.marca,
+                  modello: aggiornato.modello,
+                  targa: aggiornato.targa,
+                  chilometraggio: Math.max(v.chilometraggio, aggiornato.kmAttuali),
+                }
+              : v
+          ),
+          noleggio: { ...d.noleggio, veicoli: d.noleggio.veicoli.map((v) => (v.id === id ? aggiornato : v)) },
         },
         log: {
           tabella: "noleggio",
@@ -927,18 +1056,23 @@ export function GestionaleProvider({ children }: { children: React.ReactNode }) 
       const current = dataRef.current.noleggio.veicoli.find((v) => v.id === id);
       if (!current) return () => {};
       const oggetto = nomeRentVeicolo(current);
+      // Si elimina il veicolo intero: anche la scheda con i suoi movimenti, se non è un'auto del catalogo.
+      const scheda = dataRef.current.veicoli.find((v) => v.id === current.veicoloId);
+      const via = scheda && !scheda.carId ? scheda.id : null;
       return editAnnullabile(
         (d) => ({
           data: {
             ...d,
-            noleggio: {
-              ...d.noleggio,
-              veicoli: d.noleggio.veicoli.filter((v) => v.id !== id),
-              prenotazioni: d.noleggio.prenotazioni.filter((p) => p.veicoloId !== id),
-              preventivi: d.noleggio.preventivi.map((p) => (p.veicoloId === id ? { ...p, veicoloId: null } : p)),
-            },
+            ...senzaNoleggioDi(d, current.veicoloId, id),
+            // Un'auto del catalogo resta: torna a Global Drive, da preparare.
+            veicoli: via
+              ? d.veicoli.filter((v) => v.id !== via)
+              : d.veicoli.map((v) =>
+                  v.id === current.veicoloId ? { ...v, attivita: "Vendita" as const, stato: "In preparazione" as const } : v
+                ),
+            movimenti: via ? d.movimenti.filter((m) => m.autoId !== via) : d.movimenti,
           },
-          log: { tabella: "noleggio", azione: "Eliminato", oggetto, dettaglio: "con le sue prenotazioni" },
+          log: { tabella: "noleggio", azione: "Eliminato", oggetto, dettaglio: "con le sue prenotazioni e i suoi movimenti" },
         }),
         { tabella: "noleggio", azione: "Creato", oggetto }
       );
@@ -956,6 +1090,9 @@ export function GestionaleProvider({ children }: { children: React.ReactNode }) 
         return { ok: false, errore: "Questa auto è già prenotata in tutto o in parte del periodo scelto." };
       }
       const auto = veicoli.find((v) => v.id === init.veicoloId);
+      if (auto && !inFlotta(auto, dataRef.current.veicoli)) {
+        return { ok: false, errore: `${nomeRentVeicolo(auto)} è passata alla vendita: non è più in flotta.` };
+      }
       if (auto && (auto.stato === "Fuori servizio" || auto.stato === "In manutenzione")) {
         return { ok: false, errore: `${nomeRentVeicolo(auto)} è «${auto.stato}»: rimettila disponibile dalla Flotta prima di prenotarla.` };
       }
@@ -1025,6 +1162,9 @@ export function GestionaleProvider({ children }: { children: React.ReactNode }) 
             const incasso: Movimento = withTotale({
               ...movimentoVuoto(today),
               id: nuovoMovId,
+              attivita: "Noleggio" as const,
+              // L'incasso va sulla scheda dell'auto: così si vede quanto ha reso.
+              autoId: flotta.find((v) => v.id === aggiornata.veicoloId)?.veicoloId ?? null,
               data: aggiornata.dataFine,
               contattoId: aggiornata.contattoId,
               fornitoreCliente: cliente?.nome || aggiornata.clienteNomeLibero,
@@ -1184,7 +1324,15 @@ export function GestionaleProvider({ children }: { children: React.ReactNode }) 
 
   const importaMovimenti = useCallback<GestionaleContextValue["importaMovimenti"]>(
     (righe, file) => {
-      const nuovi = righe.map((r) => withTotale({ ...movimentoVuoto(today), ...r, id: uid("mov") }));
+      const { veicoli } = dataRef.current;
+      const nuovi = righe.map((r) =>
+        withTotale({
+          ...movimentoVuoto(today),
+          ...r,
+          attivita: r.attivita ?? attivitaDedotta({ autoId: r.autoId ?? null, categoria: r.categoria ?? "" }, veicoli),
+          id: uid("mov"),
+        })
+      );
       const log: LogInput = { tabella: "movimenti", azione: "Creato", oggetto: `Importazione da ${file}`, dettaglio: `${nuovi.length} movimenti` };
       return editAnnullabile(
         (d) => ({ data: { ...d, movimenti: [...nuovi, ...d.movimenti] }, log }),
@@ -1249,10 +1397,11 @@ export function GestionaleProvider({ children }: { children: React.ReactNode }) 
 
   const importaFlotta = useCallback<GestionaleContextValue["importaFlotta"]>(
     (righe, file) => {
-      const nuovi = righe.map((r) => ({ ...r, id: uid("rv") }));
+      const nuovi: RentVeicolo[] = righe.map((r) => ({ ...r, id: uid("rv"), veicoloId: null }));
       const log: LogInput = { tabella: "noleggio", azione: "Creato", oggetto: `Importazione da ${file}`, dettaglio: `${nuovi.length} auto in flotta` };
       return editAnnullabile(
-        (d) => ({ data: { ...d, noleggio: { ...d.noleggio, veicoli: [...nuovi, ...d.noleggio.veicoli] } }, log }),
+        // Ogni auto importata riceve la sua scheda nel gestionale (attività Noleggio).
+        (d) => ({ data: collegaFlotta({ ...d, noleggio: { ...d.noleggio, veicoli: [...nuovi, ...d.noleggio.veicoli] } }, () => uid("veh")), log }),
         { ...log, azione: "Eliminato", dettaglio: "importazione annullata" }
       );
     },
@@ -1319,12 +1468,14 @@ export function GestionaleProvider({ children }: { children: React.ReactNode }) 
       impostazioni: data.impostazioni,
       storico: data.storico,
       noleggio: data.noleggio,
+      flotta,
       addVeicolo,
       updateVeicolo,
       deleteVeicolo,
       schedaDellAuto,
       cambiaStatoCatalogo,
       impostaVisibilita,
+      assegnaAttivita,
       scollegaAuto,
       prossimoContratto,
       registraVendita,
@@ -1359,12 +1510,14 @@ export function GestionaleProvider({ children }: { children: React.ReactNode }) 
     [
       ready,
       data,
+      flotta,
       addVeicolo,
       updateVeicolo,
       deleteVeicolo,
       schedaDellAuto,
       cambiaStatoCatalogo,
       impostaVisibilita,
+      assegnaAttivita,
       scollegaAuto,
       prossimoContratto,
       registraVendita,

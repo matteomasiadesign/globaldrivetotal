@@ -25,7 +25,7 @@ import { btnPrimary, focusRing, inputCls, rowDivider, textareaCls } from "../../
 import { useToast } from "../../ui/Toast";
 
 function PrenotazioneDrawer({ prenotazioneId, onClose }: { prenotazioneId?: string; onClose: () => void }) {
-  const { noleggio, contatti, addPrenotazione, updatePrenotazione, addContatto } = useGestionale();
+  const { noleggio, flotta, contatti, addPrenotazione, updatePrenotazione, addContatto } = useGestionale();
   const toast = useToast();
   const esistente = noleggio.prenotazioni.find((p) => p.id === prenotazioneId);
   const [f, setF] = useState({
@@ -107,7 +107,7 @@ function PrenotazioneDrawer({ prenotazioneId, onClose }: { prenotazioneId?: stri
           <SelectField
             value={f.veicoloId}
             blank="— scegli —"
-            options={noleggio.veicoli.map((v) => ({
+            options={noleggio.veicoli.filter((v) => flotta.includes(v) || v.id === esistente?.veicoloId).map((v) => ({
               value: v.id,
               label: `${nomeRentVeicolo(v)}${v.stato === "Fuori servizio" || v.stato === "In manutenzione" ? ` (${v.stato.toLowerCase()})` : ""}`,
             }))}
@@ -205,7 +205,10 @@ export default function Prenotazioni() {
   const { noleggio, contatti, updatePrenotazione, deletePrenotazione } = useGestionale();
   const toast = useToast();
   const [stato, setStato] = useState<StatoPrenotazione | "tutte">("tutte");
-  const [aperta, setAperta] = useState<{ key: number; id?: string } | null>(null);
+  // Da «Oggi» si arriva con ?nuova=1: il modulo della nuova prenotazione è già aperto.
+  const [aperta, setAperta] = useState<{ key: number; id?: string } | null>(() =>
+    typeof window !== "undefined" && new URLSearchParams(window.location.search).has("nuova") ? { key: 0 } : null
+  );
 
   const nomeAuto = (id: string) => {
     const v = noleggio.veicoli.find((x) => x.id === id);

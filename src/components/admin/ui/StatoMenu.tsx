@@ -8,7 +8,7 @@ import { focusRing } from "./styles";
 type Tono = "blue" | "amber" | "green" | "red" | "slate";
 
 const TONI: Record<Tono, string> = {
-  blue: "bg-blue-500/15 text-blue-300 hover:bg-blue-500/25",
+  blue: "bg-acc-500/15 text-acc-300 hover:bg-acc-500/25",
   amber: "bg-amber-500/15 text-amber-300 hover:bg-amber-500/25",
   green: "bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/25",
   red: "bg-rose-500/15 text-rose-300 hover:bg-rose-500/25",

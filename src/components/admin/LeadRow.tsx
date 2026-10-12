@@ -270,7 +270,7 @@ export default function LeadRow({
               <div className="min-w-0">
                 <dt className="text-xs text-adm-muted">Email</dt>
                 <dd className="truncate">
-                  <a href={`mailto:${lead.email}`} className="text-blue-300 hover:underline">
+                  <a href={`mailto:${lead.email}`} className="text-acc-300 hover:underline">
                     {lead.email}
                   </a>
                 </dd>

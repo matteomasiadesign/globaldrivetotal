@@ -578,6 +578,8 @@ create table public.veicoli (
   car_id                   uuid unique references public.cars(id) on delete set null,
   fornitore_id             uuid references public.contatti(id) on delete set null,   -- da chi è stata acquistata
   acquirente_id            uuid references public.contatti(id) on delete set null,   -- a chi è stata venduta
+  -- Vendita = parco auto di Global Drive; Noleggio = flotta di Global Rent (vedi noleggio_veicoli).
+  attivita                 text not null default 'Vendita' check (attivita in ('Vendita', 'Noleggio')),
   marca                    text not null default '',
   modello                  text not null default '',
   targa                    text not null default '',
@@ -607,6 +609,7 @@ create unique index uq_veicoli_targa on public.veicoli (upper(targa)) where targ
 alter table public.vehicle_documents
   add constraint vehicle_documents_veicolo_fk foreign key (veicolo_id) references public.veicoli(id) on delete cascade;
 create index idx_veicoli_stato on public.veicoli (stato);
+create index idx_veicoli_attivita on public.veicoli (attivita);
 create index idx_veicoli_fornitore on public.veicoli (fornitore_id);
 create index idx_veicoli_acquirente on public.veicoli (acquirente_id);
 create index idx_veicoli_vendita on public.veicoli (data_vendita);
@@ -616,6 +619,8 @@ create trigger trg_veicoli_updated before update on public.veicoli
 -- Libro cassa/banca. auto_id nullo = costo generale dell'attività.
 create table public.movimenti (
   id                    uuid primary key default gen_random_uuid(),
+  -- Global Drive (Vendita) o Global Rent (Noleggio): resta anche se l'auto cambia attività.
+  attivita              text not null default 'Vendita' check (attivita in ('Vendita', 'Noleggio')),
   data                  date not null default current_date,
   auto_id               uuid references public.veicoli(id) on delete cascade,
   contatto_id           uuid references public.contatti(id) on delete set null,
@@ -643,6 +648,7 @@ create table public.movimenti (
 );
 create index idx_movimenti_auto on public.movimenti (auto_id);
 create index idx_movimenti_data on public.movimenti (data);
+create index idx_movimenti_attivita on public.movimenti (attivita);
 create index idx_movimenti_da_saldare on public.movimenti (data_scadenza) where stato_pagamento = 'Da saldare';
 create index idx_movimenti_banca on public.movimenti (data) where pagamento in ('CONTO', 'Bonifico') and not riconciliato;
 create trigger trg_movimenti_updated before update on public.movimenti
@@ -1083,7 +1089,9 @@ with vendite as (
    cross join public.impostazioni i
    where i.id = 1
      and m.iva_detraibile and m.tipo = 'Uscita'
-     and not (i.margine_con_spese and m.auto_id is not null and m.natura_costo = 'Variabile diretto auto'
+     -- Le spese del noleggio (Global Rent) restano in regime ordinario.
+     and not (i.margine_con_spese and m.attivita <> 'Noleggio' and m.auto_id is not null
+              and m.natura_costo = 'Variabile diretto auto'
               and m.categoria <> 'Acquisto veicolo' and coalesce(v.servizio, '') <> 'Conto vendita')
    group by 1, 2
 ), altre as (
@@ -1128,8 +1136,11 @@ revoke all on public.veicoli_conti, public.liquidazione_iva from anon;
 -- ---------------------------------------------------------------------
 -- I clienti del noleggio sono i contatti (con patente e documento).
 
+-- La parte di noleggio di un veicolo. Il veicolo (acquisto, spese, vendita) è la scheda
+-- veicolo_id, condivisa con Global Drive: è in flotta finché la scheda ha attività 'Noleggio'.
 create table public.noleggio_veicoli (
   id                    uuid primary key default gen_random_uuid(),
+  veicolo_id            uuid unique references public.veicoli(id) on delete cascade,
   marca                 text not null default '',
   modello               text not null default '',
   targa                 text not null default '',

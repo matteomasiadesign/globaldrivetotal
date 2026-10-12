@@ -5,6 +5,10 @@
 import { fromDateStr, addDays } from "@/lib/admin/dates";
 import type { Avviso, Contatto } from "./types";
 
+/** Le pagine di Global Rent: /admin/noleggio (panoramica) e /admin/noleggio/<sezione>. */
+export type NoleggioSezione = "panoramica" | "prenotazioni" | "calendario" | "preventivi" | "flotta" | "tariffe";
+export const SEZIONI_NOLEGGIO: NoleggioSezione[] = ["panoramica", "prenotazioni", "calendario", "preventivi", "flotta", "tariffe"];
+
 export type CategoriaVeicolo = "Economy" | "Compatta" | "Berlina" | "SUV" | "Furgone" | "Altro";
 export const CATEGORIE_VEICOLO: CategoriaVeicolo[] = ["Economy", "Compatta", "Berlina", "SUV", "Furgone", "Altro"];
 
@@ -17,8 +21,15 @@ export const STATI_PRENOTAZIONE: StatoPrenotazione[] = ["Prenotata", "In corso",
 export type StatoPreventivo = "Bozza" | "Inviato" | "Accettato" | "Rifiutato" | "Scaduto";
 export const STATI_PREVENTIVO: StatoPreventivo[] = ["Bozza", "Inviato", "Accettato", "Rifiutato", "Scaduto"];
 
+/**
+ * La parte di noleggio di un veicolo: categoria, tariffa, km e scadenze. Il veicolo vero e proprio
+ * (acquisto, spese, vendita) è la scheda `veicoloId` del gestionale, condivisa con Global Drive:
+ * l'auto è in flotta finché quella scheda ha attività «Noleggio». Marca, modello e targa sono
+ * copiati dalla scheda e tenuti allineati.
+ */
 export interface RentVeicolo {
   id: string;
+  veicoloId: string | null;
   marca: string;
   modello: string;
   targa: string;
@@ -32,6 +43,24 @@ export interface RentVeicolo {
   dataTagliando: string;
   note: string;
 }
+
+/** Quello che si scrive per una nuova auto in flotta: la scheda collegata la crea il gestionale. */
+export type NuovoRentVeicolo = Omit<RentVeicolo, "id" | "veicoloId">;
+
+export const rentVeicoloVuoto = (): NuovoRentVeicolo => ({
+  marca: "",
+  modello: "",
+  targa: "",
+  categoria: "Economy",
+  kmAttuali: 0,
+  tariffaGiornaliera: 0,
+  stato: "Disponibile",
+  dataRevisione: "",
+  dataBollo: "",
+  dataAssicurazione: "",
+  dataTagliando: "",
+  note: "",
+});
 
 export interface RentPrenotazione {
   id: string;
@@ -172,9 +201,9 @@ export function computeAvvisiRent(veicoli: RentVeicolo[], contatti: Contatto[], 
       const data = v[campo];
       if (!data) return;
       if (data < oggi) {
-        avvisi.push({ livello: "danger", messaggio: `${nomeRentVeicolo(v)}: ${label} scaduta`, href: "/admin/noleggio?tab=flotta" });
+        avvisi.push({ livello: "danger", messaggio: `${nomeRentVeicolo(v)}: ${label} scaduta`, href: "/admin/noleggio/flotta" });
       } else if (data <= tra30) {
-        avvisi.push({ livello: "warning", messaggio: `${nomeRentVeicolo(v)}: ${label} in scadenza entro 30 giorni`, href: "/admin/noleggio?tab=flotta" });
+        avvisi.push({ livello: "warning", messaggio: `${nomeRentVeicolo(v)}: ${label} in scadenza entro 30 giorni`, href: "/admin/noleggio/flotta" });
       }
     });
   });

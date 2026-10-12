@@ -302,7 +302,7 @@ export default function ImportDialog<T>({
                   </Pill>
                 )}
                 <label className="ml-auto flex cursor-pointer items-center gap-2 text-slate-300">
-                  <input type="checkbox" checked={soloProblemi} onChange={(e) => setSoloProblemi(e.target.checked)} className="size-4 accent-blue-600" />
+                  <input type="checkbox" checked={soloProblemi} onChange={(e) => setSoloProblemi(e.target.checked)} className="size-4 accent-acc-600" />
                   Solo righe da controllare
                 </label>
               </div>

@@ -11,8 +11,9 @@ import { foglioMovimenti, foglioPrimaNota } from "@/lib/export/gestionale";
 import { nomeFile, scaricaXlsx } from "@/lib/export/scrivi";
 import { euro, nomeVeicolo } from "@/lib/gestionale/calc";
 import { anniDisponibili, etichettaPeriodo, inPeriodo, type Periodo } from "@/lib/gestionale/periodo";
-import type { Movimento } from "@/lib/gestionale/types";
+import { NOME_ATTIVITA, type Movimento } from "@/lib/gestionale/types";
 import { useEditors } from "../AdminEditors";
+import { useAttivita } from "../Attivita";
 import { useUrlState } from "../useUrlState";
 import { Stat, signedText } from "../ui/Data";
 import ExportMenu, { useContestoExport } from "../ui/ExportMenu";
@@ -24,11 +25,16 @@ import { btnPrimary, btnSecondary, inputCls } from "../ui/styles";
 import { useToast } from "../ui/Toast";
 
 type TipoFiltro = "tutti" | "Entrata" | "Uscita";
+/** Solo i movimenti della gestione aperta, o quelli di tutta la società (la contabilità è una). */
+type Ambito = "gestione" | "societa";
 
 export default function MovimentiView({ initialAuto }: { initialAuto?: string }) {
   const router = useRouter();
   const { today, isAdmin } = useAdmin();
-  const { movimenti, veicoli, deleteMovimento, updateMovimento } = useGestionale();
+  const { movimenti: tuttiIMovimenti, veicoli, deleteMovimento, updateMovimento } = useGestionale();
+  const { attivita } = useAttivita();
+  const [ambito, setAmbito] = useUrlState<Ambito>("ambito", "gestione");
+  const movimenti = ambito === "societa" ? tuttiIMovimenti : tuttiIMovimenti.filter((m) => m.attivita === attivita);
   const { openMovimento, openContatto } = useEditors();
   const toast = useToast();
 
@@ -124,6 +130,15 @@ export default function MovimentiView({ initialAuto }: { initialAuto?: string })
       </div>
 
       <div className="mb-4 flex flex-wrap items-center gap-3">
+        <FilterTabs
+          tabs={[
+            { id: "gestione", label: NOME_ATTIVITA[attivita], count: tuttiIMovimenti.filter((m) => m.attivita === attivita).length },
+            { id: "societa", label: "Tutta la società", count: tuttiIMovimenti.length },
+          ]}
+          value={ambito}
+          onChange={setAmbito}
+          label="Movimenti di quale gestione"
+        />
         <FilterTabs tabs={tabs} value={tipo} onChange={setTipo} label="Filtra per tipo" />
         <PeriodoSelect value={periodo} onChange={setPeriodo} anni={anni} />
         <SelectField
@@ -131,7 +146,9 @@ export default function MovimentiView({ initialAuto }: { initialAuto?: string })
           blank="Tutte le auto"
           options={[
             { value: "generale", label: "Solo generali" },
-            ...veicoli.map((v) => ({ value: v.id, label: nomeVeicolo(v) })),
+            ...veicoli
+              .filter((v) => ambito === "societa" || v.attivita === attivita || v.id === auto)
+              .map((v) => ({ value: v.id, label: nomeVeicolo(v) })),
           ]}
           onChange={setAuto}
           aria-label="Filtra per auto"
@@ -186,6 +203,15 @@ export default function MovimentiView({ initialAuto }: { initialAuto?: string })
             titolo: "Descrizione",
             cella: (m) => (
               <span className="flex min-w-0 items-center gap-1.5 font-medium text-white">
+                {ambito === "societa" && (
+                  <span
+                    className={`shrink-0 rounded px-1.5 text-[10px] font-semibold uppercase tracking-wide ${
+                      m.attivita === "Noleggio" ? "bg-violet-500/15 text-violet-300" : "bg-blue-500/15 text-blue-300"
+                    }`}
+                  >
+                    {m.attivita === "Noleggio" ? "Rent" : "Drive"}
+                  </span>
+                )}
                 <span className="truncate">{m.descrizione || m.categoria}</span>
                 {m.allegatoPath && <Paperclip className="size-3.5 shrink-0 text-adm-muted" aria-label="Con allegato" />}
               </span>

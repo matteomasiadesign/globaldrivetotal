@@ -96,7 +96,7 @@ export default function BancaView() {
             type="checkbox"
             checked={soloDaFare}
             onChange={(e) => setSoloDaFare(e.target.checked)}
-            className="size-4 accent-blue-600"
+            className="size-4 accent-acc-600"
           />
           Solo da riconciliare
         </label>

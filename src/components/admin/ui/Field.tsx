@@ -66,9 +66,9 @@ export function Switch({
       title={label}
       disabled={disabled}
       onClick={() => onChange(!checked)}
-      className={`relative inline-flex shrink-0 cursor-pointer items-center rounded-full transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-400 disabled:cursor-not-allowed disabled:opacity-40 ${
+      className={`relative inline-flex shrink-0 cursor-pointer items-center rounded-full transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-acc-400 disabled:cursor-not-allowed disabled:opacity-40 ${
         compact ? "h-5 w-9" : "h-6 w-11"
-      } ${checked ? "bg-blue-600" : "bg-white/15"}`}
+      } ${checked ? "bg-acc-600" : "bg-white/15"}`}
     >
       <span
         className={`inline-block rounded-full bg-white shadow transition-transform ${

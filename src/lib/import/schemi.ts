@@ -17,7 +17,7 @@ import {
   type TipoContatto,
 } from "@/lib/gestionale/types";
 import type { NuovoContatto, NuovoMovimento, NuovoVeicolo } from "@/lib/gestionale/defaults";
-import type { CategoriaVeicolo, RentVeicolo, StatoVeicoloRent } from "@/lib/gestionale/rent";
+import type { CategoriaVeicolo, NuovoRentVeicolo, StatoVeicoloRent } from "@/lib/gestionale/rent";
 import type { ContestoImport, Esito, Schema } from "./mappatura";
 import {
   normTarga,
@@ -371,7 +371,7 @@ export const schemaVeicoli: Schema<NuovoVeicolo> = {
 
 // --- Flotta noleggio ------------------------------------------------------------
 
-export const schemaFlotta: Schema<Omit<RentVeicolo, "id">> = {
+export const schemaFlotta: Schema<NuovoRentVeicolo> = {
   entita: "flotta",
   nome: "auto della flotta",
   riassunto: (v) => [[v.marca, v.modello].join(" "), v.targa, v.categoria, `${eur(v.tariffaGiornaliera)}/giorno`].filter(Boolean).join(" · "),
@@ -389,7 +389,7 @@ export const schemaFlotta: Schema<Omit<RentVeicolo, "id">> = {
     { id: "tagliando", etichetta: "Prossimo tagliando", sinonimi: ["tagliando", "prossimo tagliando"] },
     { id: "note", etichetta: "Note", sinonimi: ["note"] },
   ],
-  costruisci(v): Esito<Omit<RentVeicolo, "id">> {
+  costruisci(v): Esito<NuovoRentVeicolo> {
     const errori: string[] = [];
     if (!presente(v.marca)) errori.push("Marca mancante");
     if (!presente(v.modello)) errori.push("Modello mancante");

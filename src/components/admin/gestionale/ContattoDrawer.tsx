@@ -230,7 +230,7 @@ export default function ContattoDrawer({
                   <div>
                     <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-adm-muted">Noleggi</p>
                     {noleggi.slice(0, 5).map((p) => (
-                      <button key={p.id} type="button" onClick={() => vai("/admin/noleggio?tab=prenotazioni")} className={riga}>
+                      <button key={p.id} type="button" onClick={() => vai("/admin/noleggio/prenotazioni")} className={riga}>
                         <span className="truncate">
                           {formatDate(p.dataInizio)} → {formatDate(p.dataFine)}
                         </span>

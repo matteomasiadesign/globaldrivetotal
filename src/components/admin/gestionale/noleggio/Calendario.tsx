@@ -25,7 +25,7 @@ const iso = (anno: number, mese: number, giorno: number) =>
 // Disponibilità della flotta a colpo d'occhio: una riga per auto, una colonna per giorno.
 export default function Calendario() {
   const { today } = useAdmin();
-  const { noleggio, contatti } = useGestionale();
+  const { noleggio, flotta, contatti } = useGestionale();
   const [anno, setAnno] = useState(() => Number(today.slice(0, 4)));
   const [mese, setMese] = useState(() => Number(today.slice(5, 7)) - 1);
   const [scelta, setScelta] = useState<string | null>(null);
@@ -75,7 +75,7 @@ export default function Calendario() {
         </div>
       </div>
 
-      {noleggio.veicoli.length === 0 ? (
+      {flotta.length === 0 ? (
         <EmptyState icon={CalendarDays} title="Aggiungi auto alla flotta per vedere il calendario" />
       ) : (
         <div className="overflow-x-auto rounded-xl border border-adm-line bg-adm-surface">
@@ -87,13 +87,13 @@ export default function Calendario() {
             {giorni.map((g) => (
               <div
                 key={g}
-                className={`border-b border-l border-adm-line py-2 text-center text-xs ${iso(anno, mese, g) === today ? "font-bold text-blue-400" : "text-adm-muted"}`}
+                className={`border-b border-l border-adm-line py-2 text-center text-xs ${iso(anno, mese, g) === today ? "font-bold text-acc-400" : "text-adm-muted"}`}
               >
                 {g}
               </div>
             ))}
 
-            {noleggio.veicoli.map((v) => (
+            {flotta.map((v) => (
               <Fragment key={v.id}>
                 <div className="sticky left-0 z-10 truncate border-b border-adm-line bg-adm-surface px-3 py-2 text-sm text-white">
                   {nomeRentVeicolo(v)}

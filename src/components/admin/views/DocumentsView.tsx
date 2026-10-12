@@ -50,7 +50,7 @@ function DocRow({ doc, highlight = false }: { doc: VehicleDocument; highlight?: 
     else toast("Non trovo il file: potrebbe essere stato caricato da un altro browser");
   }
   return (
-    <div className={`flex items-center gap-3 px-4 py-3 ${highlight ? "bg-blue-500/10" : ""}`}>
+    <div className={`flex items-center gap-3 px-4 py-3 ${highlight ? "bg-acc-500/10" : ""}`}>
       <div className="min-w-0 flex-1">
         <p className="truncate font-medium text-white">{doc.title}</p>
         <p className="truncate text-sm text-adm-muted">
@@ -156,7 +156,7 @@ function Dossier({
                   <button
                     type="button"
                     onClick={() => onLink(category)}
-                    className={`inline-flex cursor-pointer items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm font-medium text-blue-300 transition-colors hover:bg-blue-500/10 ${focusRing}`}
+                    className={`inline-flex cursor-pointer items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm font-medium text-acc-300 transition-colors hover:bg-acc-500/10 ${focusRing}`}
                   >
                     <Plus className="size-4" />
                     Aggiungi
@@ -187,7 +187,7 @@ function Dossier({
           <button
             type="button"
             onClick={() => onLink("Altro")}
-            className={`inline-flex cursor-pointer items-center gap-1.5 rounded-lg px-2.5 py-1 text-sm font-medium text-blue-300 transition-colors hover:bg-blue-500/10 ${focusRing}`}
+            className={`inline-flex cursor-pointer items-center gap-1.5 rounded-lg px-2.5 py-1 text-sm font-medium text-acc-300 transition-colors hover:bg-acc-500/10 ${focusRing}`}
           >
             <Plus className="size-4" />
             Aggiungi
@@ -290,7 +290,7 @@ export default function DocumentsView({
                 type="checkbox"
                 checked={onlyIncomplete}
                 onChange={(e) => setOnlyIncomplete(e.target.checked)}
-                className="size-4 accent-blue-600"
+                className="size-4 accent-acc-600"
               />
               Solo con documenti mancanti ({incompleteCount})
             </label>
@@ -311,7 +311,7 @@ export default function DocumentsView({
                     onClick={() => setSelectedId(car.id)}
                     aria-current={active ? "true" : undefined}
                     className={`flex w-full cursor-pointer items-center gap-3 px-4 py-3 text-left transition-colors first:rounded-t-xl last:rounded-b-xl ${
-                      active ? "bg-blue-600/15" : "hover:bg-white/5"
+                      active ? "bg-acc-600/15" : "hover:bg-white/5"
                     }`}
                   >
                     <span className="min-w-0 flex-1">
@@ -325,7 +325,7 @@ export default function DocumentsView({
                         {car.version}
                       </span>
                       {hits.length > 0 && (
-                        <span className="block truncate text-sm text-blue-300">
+                        <span className="block truncate text-sm text-acc-300">
                           {hits.length === 1 ? hits[0].title : `${hits.length} documenti trovati`}
                         </span>
                       )}

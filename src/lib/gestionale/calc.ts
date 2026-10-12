@@ -95,12 +95,13 @@ export function costiDiretti(veicoloId: string, movimenti: Movimento[]) {
  * IVA che si porta davvero in detrazione. Con il margine calcolato sulle spese
  * (`margineConSpese`) le spese dirette di un'auto in regime del margine entrano nel
  * margine col loro totale, quindi la loro IVA non si detrae anche se il movimento
- * la indica come detraibile.
+ * la indica come detraibile. Le spese del noleggio (Global Rent) restano in regime ordinario.
  */
 export function ivaDetraibileEffettiva(m: Movimento, veicoli: Veicolo[], impostazioni: Impostazioni): number {
   if (m.tipo !== "Uscita" || !m.ivaDetraibile) return 0;
   if (
     impostazioni.margineConSpese &&
+    m.attivita !== "Noleggio" &&
     m.autoId &&
     m.naturaCosto === "Variabile diretto auto" &&
     m.categoria !== "Acquisto veicolo"
@@ -278,7 +279,8 @@ export function computeAvvisi(
   const avvisi: Avviso[] = [];
 
   veicoli.forEach((v) => {
-    if (v.stato === "Venduta" || v.stato === "Archiviata" || !v.dataAcquisto) return;
+    // Un'auto a noleggio lavora: non è ferma in stock.
+    if (v.attivita === "Noleggio" || v.stato === "Venduta" || v.stato === "Archiviata" || !v.dataAcquisto) return;
     const giorni = Math.round(
       (fromDateStr(oggi).getTime() - fromDateStr(v.dataAcquisto).getTime()) / 86_400_000
     );

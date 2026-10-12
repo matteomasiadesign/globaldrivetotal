@@ -13,14 +13,14 @@ const WEEKDAYS = ["Lun", "Mar", "Mer", "Gio", "Ven", "Sab", "Dom"];
 const MAX_CHIPS = 3;
 
 const CHIP: Record<AppointmentStatus, string> = {
-  Confermato: "bg-blue-500/20 text-blue-200",
+  Confermato: "bg-acc-500/20 text-acc-200",
   "In Attesa": "bg-amber-500/20 text-amber-200",
   Completato: "bg-emerald-500/15 text-emerald-300/80",
   Annullato: "bg-white/5 text-slate-500 line-through",
 };
 
 const DOT: Record<AppointmentStatus, string> = {
-  Confermato: "bg-blue-400",
+  Confermato: "bg-acc-400",
   "In Attesa": "bg-amber-400",
   Completato: "bg-emerald-400/70",
   Annullato: "bg-slate-600",
@@ -129,13 +129,13 @@ export default function AgendaCalendar() {
                   open ? `${open} appuntament${open === 1 ? "o" : "i"}` : "libero"
                 }`}
                 className={`relative flex min-h-16 cursor-pointer flex-col items-stretch gap-1 border-adm-line p-1.5 text-left transition-colors sm:min-h-28 sm:p-2 ${edge} ${focusRing} ${
-                  isSelected ? "bg-blue-600/15" : "hover:bg-white/[0.03]"
+                  isSelected ? "bg-acc-600/15" : "hover:bg-white/[0.03]"
                 } ${inMonth ? "" : "opacity-40"}`}
               >
                 <span
                   className={`grid size-6 place-items-center self-start rounded-full text-sm tabular-nums ${
                     isToday
-                      ? "bg-blue-600 font-semibold text-white"
+                      ? "bg-acc-600 font-semibold text-white"
                       : isSelected
                         ? "font-semibold text-white"
                         : "text-slate-300"

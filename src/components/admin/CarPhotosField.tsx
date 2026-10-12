@@ -107,7 +107,7 @@ export default function CarPhotosField({
           if (!full) void addFiles(e.dataTransfer.files);
         }}
         className={`rounded-lg border border-dashed px-4 py-5 text-center transition-colors ${
-          dragging ? "border-blue-400 bg-blue-500/10" : "border-adm-line bg-adm-bg"
+          dragging ? "border-acc-400 bg-acc-500/10" : "border-adm-line bg-adm-bg"
         }`}
       >
         <input
@@ -122,7 +122,7 @@ export default function CarPhotosField({
           type="button"
           disabled={busy || full}
           onClick={() => inputRef.current?.click()}
-          className="inline-flex cursor-pointer items-center gap-2 text-sm font-semibold text-blue-300 hover:text-blue-200 disabled:cursor-not-allowed disabled:opacity-50"
+          className="inline-flex cursor-pointer items-center gap-2 text-sm font-semibold text-acc-300 hover:text-acc-200 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {busy ? <Loader2 className="size-4 animate-spin" /> : <ImagePlus className="size-4" />}
           {busy ? "Comprimo le foto…" : "Carica foto dal computer"}
@@ -162,7 +162,7 @@ export default function CarPhotosField({
                 className="object-cover"
               />
               {i === 0 ? (
-                <span className="absolute left-1 top-1 rounded bg-blue-600 px-1.5 py-0.5 text-[10px] font-bold uppercase text-white">
+                <span className="absolute left-1 top-1 rounded bg-acc-600 px-1.5 py-0.5 text-[10px] font-bold uppercase text-white">
                   Copertina
                 </span>
               ) : (
@@ -171,7 +171,7 @@ export default function CarPhotosField({
                   onClick={() => makeCover(p.key)}
                   title="Usa come copertina"
                   aria-label={`Usa la foto ${i + 1} come copertina`}
-                  className="absolute left-1 top-1 grid size-6 cursor-pointer place-items-center rounded bg-black/70 text-white opacity-100 transition-opacity hover:bg-blue-600 sm:opacity-0 sm:group-hover:opacity-100 sm:focus-visible:opacity-100"
+                  className="absolute left-1 top-1 grid size-6 cursor-pointer place-items-center rounded bg-black/70 text-white opacity-100 transition-opacity hover:bg-acc-600 sm:opacity-0 sm:group-hover:opacity-100 sm:focus-visible:opacity-100"
                 >
                   <Star className="size-3.5" />
                 </button>

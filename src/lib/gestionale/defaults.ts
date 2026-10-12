@@ -10,6 +10,7 @@ export const veicoloVuoto = (impostazioni: Impostazioni): Omit<Veicolo, "id"> =>
   carId: null,
   fornitoreId: null,
   acquirenteId: null,
+  attivita: "Vendita",
   marca: "",
   modello: "",
   targa: "",
@@ -33,6 +34,7 @@ export const veicoloVuoto = (impostazioni: Impostazioni): Omit<Veicolo, "id"> =>
 });
 
 export const movimentoVuoto = (oggi: string): Omit<Movimento, "id" | "totale"> => ({
+  attivita: "Vendita",
   data: oggi,
   autoId: null,
   contattoId: null,

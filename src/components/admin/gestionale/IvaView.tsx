@@ -84,7 +84,7 @@ function Liquidazione({ anno }: { anno: number }) {
           (noleggi, servizi) è quella scritta nei movimenti; l&apos;IVA detraibile è quella indicata come tale nei
           singoli movimenti
           {impostazioni.margineConSpese ? ", escluse le spese già conteggiate nel margine" : ""}. Il metodo si cambia da{" "}
-          <Link href="/admin/impostazioni" className="text-blue-400 hover:text-blue-300">
+          <Link href="/admin/impostazioni" className="text-acc-400 hover:text-acc-300">
             Impostazioni
           </Link>
           : verificalo con il tuo commercialista.
@@ -138,7 +138,7 @@ function RegistroVendite({ anno }: { anno: number }) {
               <td className={`${tdCls} whitespace-nowrap tabular-nums`}>{formatDate(v.dataVendita)}</td>
               <td className={tdCls}>{v.numeroFattura || "—"}</td>
               <td className={`${tdCls} font-medium`}>
-                <Link href={`/admin/auto/${v.id}`} className="text-white hover:text-blue-300">
+                <Link href={`/admin/auto/${v.id}`} className="text-white hover:text-acc-300">
                   {nomeVeicolo(v)}
                 </Link>
               </td>

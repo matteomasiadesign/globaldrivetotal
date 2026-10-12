@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { Calculator, CalendarPlus, Car as CarIcon, FolderOpen, Pencil, Plus, Receipt, Search, Star, Trash2, Upload } from "lucide-react";
+import { Calculator, CalendarPlus, Car as CarIcon, FolderOpen, KeyRound, Pencil, Plus, Receipt, Search, Star, Trash2, Upload } from "lucide-react";
 import { foglioContoEconomico, foglioContratti, foglioRegistroUsati } from "@/lib/export/gestionale";
 import { nomeFile } from "@/lib/export/scrivi";
 import { foglio } from "@/lib/export/types";
@@ -25,6 +25,7 @@ import RowMenu from "../ui/RowMenu";
 import StatoMenu from "../ui/StatoMenu";
 import { btnPrimary, btnSecondary, focusRing, inputCls, rowDivider } from "../ui/styles";
 import { useToast } from "../ui/Toast";
+import { useSpostaVeicolo } from "../useSpostaVeicolo";
 
 export type CarFilter = "tutte" | "disponibili" | "trattativa" | "vendute" | "nascoste";
 
@@ -63,6 +64,7 @@ function CarRow({ car }: { car: Car }) {
     scollegaAuto,
   } = useGestionale();
   const { openCar, openAppointment } = useEditors();
+  const sposta = useSpostaVeicolo();
 
   const hidden = Boolean(car.hidden);
   const name = `${car.brand} ${car.model}`;
@@ -175,6 +177,10 @@ function CarRow({ car }: { car: Car }) {
               icon: FolderOpen,
               onSelect: () => router.push(`/admin/documenti?auto=${car.id}`),
             },
+            // Le auto dell'azienda non ancora vendute possono passare al noleggio (Global Rent).
+            ...(scheda && car.status !== "Venduta"
+              ? [{ label: "Sposta in Global Rent (noleggio)", icon: KeyRound, onSelect: () => sposta(scheda.id, name, "Noleggio") }]
+              : []),
             {
               label: "Fissa appuntamento",
               icon: CalendarPlus,
@@ -209,8 +215,12 @@ function CarRow({ car }: { car: Car }) {
 
 export default function CarsView({ initialFilter }: { initialFilter?: CarFilter }) {
   const router = useRouter();
-  const { cars } = useCars();
-  const { veicoli, addVeicolo } = useGestionale();
+  const { cars: tutteLeAuto } = useCars();
+  const { veicoli: tuttiIVeicoli, addVeicolo } = useGestionale();
+  // Il parco auto è di Global Drive: le auto passate al noleggio stanno nella flotta di Global Rent.
+  const veicoli = tuttiIVeicoli.filter((v) => v.attivita === "Vendita");
+  const aNoleggio = new Set(tuttiIVeicoli.filter((v) => v.attivita === "Noleggio" && v.carId).map((v) => v.carId));
+  const cars = tutteLeAuto.filter((c) => !aNoleggio.has(c.id));
   const { isAdmin } = useAdmin();
   const { openCar } = useEditors();
   const [filter, setFilter] = useUrlState<CarFilter>("filtro", initialFilter ?? "tutte");
@@ -239,7 +249,7 @@ export default function CarsView({ initialFilter }: { initialFilter?: CarFilter 
     );
 
   // Schede dei conti senza un'auto nel catalogo: appena acquistate, in preparazione o archiviate.
-  const fuoriCatalogo = veicoli.filter((v) => !v.carId || !cars.some((c) => c.id === v.carId));
+  const fuoriCatalogo = veicoli.filter((v) => !v.carId || !tutteLeAuto.some((c) => c.id === v.carId));
 
   return (
     <>

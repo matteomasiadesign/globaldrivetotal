@@ -55,6 +55,24 @@ Richiesta dell'utente: migliorare nettamente la UI, più comoda da guardare e us
 
 Fase 6 completata.
 
+## Fase 7: Global Drive e Global Rent separati (ramo git `drive-rent`, 12/10/2026)
+
+Richiesta dell'utente: separare il noleggio (Global Rent) dalla vendita di usato (Global Drive), con un
+toggle sempre visibile; in comune i veicoli (assegnati all'una o all'altra) e tutto il resto. Stessa società:
+IVA e banca uniche.
+
+- Modello: `Veicolo.attivita` e `Movimento.attivita` («Vendita» | «Noleggio»); `RentVeicolo.veicoloId` = la
+  scheda del veicolo. Funzioni pure in `src/lib/gestionale/attivita.ts`; i salvataggi vecchi si migrano da soli
+  (`collegaFlotta` in `normalizza`). Spostamento con `assegnaAttivita` (hook `useSpostaVeicolo`).
+- Interfaccia: `src/components/admin/Attivita.tsx` (gestione aperta, colore `acc` blu/viola su <html>),
+  `AdminShell.tsx` riscritta (barra sospesa riducibile, toggle, menu per gestione, dock su telefono).
+  Rotte `/admin/noleggio/[sezione]`; `/admin/noleggio` è la «Oggi» di Rent.
+- IVA: le spese del noleggio restano in regime ordinario anche con il margine sulle spese.
+- Migrazione `supabase/migrations/20261014_drive_rent.sql` (testata in PGlite): **da eseguire nell'SQL Editor**.
+- Da verificare col commercialista: un'auto ex noleggio con IVA d'acquisto detratta, se venduta, non può
+  andare in regime del margine (il gestionale oggi la tratta come le altre vendite dirette).
+- Prossimi passi UI proposti: grafici nella «Oggi», richieste a colonne trascinabili, parco auto a schede con foto.
+
 ## Possibili passi successivi (non richiesti esplicitamente)
 
 - Sidebar più corta (raggruppare Scadenzario/Banca sotto Movimenti, IVA/Analisi sotto Report).

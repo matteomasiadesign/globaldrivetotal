@@ -146,7 +146,7 @@ export default function Combobox({
               onMouseEnter={() => setAttiva(i)}
               onClick={() => scegli(o.value)}
               className={`flex cursor-pointer items-center justify-between gap-3 rounded-lg px-3 py-2 text-sm ${
-                i === attiva ? "bg-blue-600/20 text-white" : o.value ? "text-slate-200" : "text-adm-muted"
+                i === attiva ? "bg-acc-600/20 text-white" : o.value ? "text-slate-200" : "text-adm-muted"
               }`}
             >
               <span className="truncate">{o.label}</span>
@@ -160,7 +160,7 @@ export default function Combobox({
               onMouseDown={(e) => e.preventDefault()}
               onMouseEnter={() => setAttiva(voci.length)}
               onClick={crea}
-              className={`flex cursor-pointer items-center gap-2 rounded-lg px-3 py-2 text-sm text-blue-300 ${attiva === voci.length ? "bg-blue-600/20" : ""}`}
+              className={`flex cursor-pointer items-center gap-2 rounded-lg px-3 py-2 text-sm text-acc-300 ${attiva === voci.length ? "bg-acc-600/20" : ""}`}
             >
               <Plus className="size-4" />
               {creaLabel} «{testo.trim()}»

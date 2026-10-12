@@ -5,11 +5,13 @@ import Link from "next/link";
 import {
   AlertCircle,
   ArrowRight,
+  CalendarCheck,
   CalendarDays,
   CalendarPlus,
+  Car,
   CheckCircle2,
+  Clock,
   Inbox,
-  KeyRound,
   Plus,
   type LucideIcon,
 } from "lucide-react";
@@ -20,44 +22,12 @@ import { isOpenAppointment } from "@/lib/admin/constants";
 import { formatLongDate, greeting, timeAgo } from "@/lib/admin/dates";
 import { getDossier } from "@/lib/admin/documents";
 import { annoNum, computeAvvisi, computeVeicolo, euro, liquidazioneTrimestre, trimestreDaVersare } from "@/lib/gestionale/calc";
-import { computeAvvisiRent, nomeRentVeicolo } from "@/lib/gestionale/rent";
 import { useEditors } from "../AdminEditors";
 import AppointmentRow from "../AppointmentRow";
 import LeadRow from "../LeadRow";
 import { SummaryRow, signedText } from "../ui/Data";
-import { EmptyState, PageHeader, Panel } from "../ui/Layout";
+import { EmptyState, KpiCard, PageHeader, Panel } from "../ui/Layout";
 import { btnPrimary, btnSecondary } from "../ui/styles";
-
-function Kpi({
-  href,
-  label,
-  value,
-  hint,
-  highlight,
-}: {
-  href: string;
-  label: string;
-  value: number;
-  hint: string;
-  highlight?: boolean;
-}) {
-  return (
-    <Link
-      href={href}
-      className="group rounded-xl border border-adm-line bg-adm-surface p-4 transition-colors hover:border-white/20"
-    >
-      <p className="text-sm text-adm-muted">{label}</p>
-      <p
-        className={`mt-1 text-3xl font-semibold tabular-nums ${
-          highlight && value > 0 ? "text-blue-400" : "text-white"
-        }`}
-      >
-        {value}
-      </p>
-      <p className="mt-1 truncate text-xs text-adm-muted group-hover:text-slate-300">{hint}</p>
-    </Link>
-  );
-}
 
 function AttentionRow({
   href,
@@ -71,11 +41,11 @@ function AttentionRow({
   return (
     <Link
       href={href}
-      className="flex items-center gap-3 px-4 py-3 text-sm text-slate-200 transition-colors hover:bg-white/5"
+      className="group flex items-center gap-3 px-4 py-3 text-sm text-slate-200 transition-colors hover:bg-white/5"
     >
       <Icon className="size-4 shrink-0 text-amber-400" />
       <span className="flex-1">{children}</span>
-      <ArrowRight className="size-4 shrink-0 text-adm-muted" />
+      <ArrowRight className="size-4 shrink-0 text-adm-muted transition-transform group-hover:translate-x-0.5" />
     </Link>
   );
 }
@@ -83,7 +53,10 @@ function AttentionRow({
 export default function TodayView() {
   const { user, now, today, leads, appointments, documents, isAdmin } = useAdmin();
   const { cars } = useCars();
-  const { veicoli, movimenti, contatti, impostazioni, noleggio } = useGestionale();
+  const { veicoli: tuttiIVeicoli, movimenti, impostazioni } = useGestionale();
+  // Questa è la «Oggi» di Global Drive: le auto a noleggio stanno in quella di Global Rent.
+  const veicoli = tuttiIVeicoli.filter((v) => v.attivita === "Vendita");
+  const aNoleggio = new Set(tuttiIVeicoli.filter((v) => v.attivita === "Noleggio" && v.carId).map((v) => v.carId));
   const { openAppointment, openCar } = useEditors();
 
   const nowDate = new Date(now);
@@ -103,20 +76,17 @@ export default function TodayView() {
 
   const available = cars.filter((c) => c.status === "Disponibile" && !c.hidden);
   const inNegotiation = cars.filter((c) => c.status === "In Trattativa");
-  const hiddenCars = cars.filter((c) => c.hidden && c.status !== "Venduta");
+  const hiddenCars = cars.filter((c) => c.hidden && c.status !== "Venduta" && !aNoleggio.has(c.id));
   const incompleteDossiers = cars.filter(
-    (c) => c.status !== "Venduta" && !getDossier(c.id, documents).complete
+    (c) => c.status !== "Venduta" && !aNoleggio.has(c.id) && !getDossier(c.id, documents).complete
   );
 
   // Conti: scadenze, giacenze e noleggio che richiedono attenzione, più le cifre dell'anno.
-  const avvisi = [
-    // Gli avvisi dei conti (scadenze, IVA, giacenze) sono per l'admin.
-    ...(isAdmin ? computeAvvisi(veicoli, movimenti, impostazioni, today) : []),
-    ...computeAvvisiRent(noleggio.veicoli, contatti, today),
-  ];
+  // Gli avvisi dei conti (scadenze, IVA, giacenze) sono per l'admin; quelli del noleggio stanno in Global Rent.
+  const avvisi = isAdmin ? computeAvvisi(veicoli, movimenti.filter((m) => m.attivita === "Vendita"), impostazioni, today) : [];
   const conti = veicoli.map((v) => ({ v, c: computeVeicolo(v, movimenti, impostazioni, today) }));
   const ricavi = movimenti
-    .filter((m) => m.tipo === "Entrata" && annoNum(m.data) === impostazioni.annoGestione)
+    .filter((m) => m.attivita === "Vendita" && m.tipo === "Entrata" && annoNum(m.data) === impostazioni.annoGestione)
     .reduce((s, m) => s + m.totale, 0);
   const risultatoVendite = conti
     .filter(({ v }) => v.dataVendita && annoNum(v.dataVendita) === impostazioni.annoGestione)
@@ -125,17 +95,8 @@ export default function TodayView() {
     .filter(({ v }) => v.stato !== "Venduta" && v.stato !== "Archiviata" && v.servizio !== "Conto vendita")
     .reduce((s, { c }) => s + c.costoTotale, 0);
   const daVersare = trimestreDaVersare(today);
-  const ivaDaVersare = liquidazioneTrimestre(daVersare.trim, veicoli, movimenti, impostazioni, today, daVersare.anno).totale;
-
-  // Noleggio: chi passa a ritirare o riportare un'auto oggi.
-  const ritiriOggi = noleggio.prenotazioni.filter((p) => p.stato === "Prenotata" && p.dataInizio === today);
-  const riconsegneOggi = noleggio.prenotazioni.filter((p) => p.stato === "In corso" && p.dataFine === today);
-  const nomeRent = (id: string) => {
-    const v = noleggio.veicoli.find((x) => x.id === id);
-    return v ? nomeRentVeicolo(v) : "Auto eliminata";
-  };
-  const clienteRent = (p: { contattoId: string | null; clienteNomeLibero: string }) =>
-    contatti.find((c) => c.id === p.contattoId)?.nome || p.clienteNomeLibero || "cliente non indicato";
+  // L'IVA è della società intera (vendita e noleggio insieme).
+  const ivaDaVersare = liquidazioneTrimestre(daVersare.trim, tuttiIVeicoli, movimenti, impostazioni, today, daVersare.anno).totale;
 
   // Richieste prese in carico ma ferme: nessun appuntamento aperto e più vecchie di una settimana.
   const settimanaFa = now - 7 * 86_400_000;
@@ -172,16 +133,19 @@ export default function TodayView() {
       />
 
       <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Kpi
+        <KpiCard
           href="/admin/richieste"
           label="Nuove richieste"
+          icon={Inbox}
           value={newLeads.length}
-          highlight
+          highlight={newLeads.length > 0}
           hint={oldestLead ? `La più vecchia: ${timeAgo(oldestLead.createdAt, now)}` : "Tutto gestito"}
         />
-        <Kpi
+        <KpiCard
           href="/admin/agenda"
           label="Appuntamenti oggi"
+          icon={CalendarCheck}
+          tone="green"
           value={todayOpen.length}
           hint={
             nextToday
@@ -191,16 +155,20 @@ export default function TodayView() {
                 : "Giornata libera"
           }
         />
-        <Kpi
+        <KpiCard
           href="/admin/agenda?tab=confermare"
           label="Da confermare"
+          icon={Clock}
+          tone="amber"
           value={pending.length}
-          highlight
+          highlight={pending.length > 0}
           hint={pending.length ? "Appuntamenti in attesa" : "Niente in sospeso"}
         />
-        <Kpi
+        <KpiCard
           href="/admin/auto?filtro=trattativa"
           label="Auto in trattativa"
+          icon={Car}
+          tone="slate"
           value={inNegotiation.length}
           hint={`${available.length} disponibili in catalogo`}
         />
@@ -213,7 +181,7 @@ export default function TodayView() {
             action={
               <Link
                 href="/admin/agenda"
-                className="text-sm text-blue-400 hover:text-blue-300"
+                className="text-sm text-acc-400 hover:text-acc-300"
               >
                 Apri agenda
               </Link>
@@ -245,7 +213,7 @@ export default function TodayView() {
               <Panel
                 title={`Andamento ${impostazioni.annoGestione}`}
                 action={
-                  <Link href="/admin/analisi" className="text-sm text-blue-400 hover:text-blue-300">
+                  <Link href="/admin/analisi" className="text-sm text-acc-400 hover:text-acc-300">
                     Apri analisi
                   </Link>
                 }
@@ -274,7 +242,7 @@ export default function TodayView() {
               newLeads.length > 4 ? (
                 <Link
                   href="/admin/richieste"
-                  className="text-sm text-blue-400 hover:text-blue-300"
+                  className="text-sm text-acc-400 hover:text-acc-300"
                 >
                   Vedi tutte ({newLeads.length})
                 </Link>
@@ -294,35 +262,6 @@ export default function TodayView() {
               </div>
             )}
           </Panel>
-
-          {(ritiriOggi.length > 0 || riconsegneOggi.length > 0) && (
-            <Panel
-              title="Noleggio oggi"
-              action={
-                <Link href="/admin/noleggio?tab=prenotazioni" className="text-sm text-blue-400 hover:text-blue-300">
-                  Prenotazioni
-                </Link>
-              }
-            >
-              <div className="divide-y divide-adm-line">
-                {[...ritiriOggi.map((p) => ({ p, cosa: "Ritiro" })), ...riconsegneOggi.map((p) => ({ p, cosa: "Riconsegna" }))].map(
-                  ({ p, cosa }) => (
-                    <Link
-                      key={`${cosa}-${p.id}`}
-                      href="/admin/noleggio?tab=prenotazioni"
-                      className="flex items-center gap-3 px-4 py-3 text-sm transition-colors hover:bg-white/5"
-                    >
-                      <KeyRound className={`size-4 shrink-0 ${cosa === "Ritiro" ? "text-blue-400" : "text-emerald-400"}`} />
-                      <span className="min-w-0 flex-1 truncate text-slate-200">
-                        <span className="font-medium text-white">{cosa}</span> · {nomeRent(p.veicoloId)} · {clienteRent(p)}
-                        {cosa === "Ritiro" ? (p.luogoRitiro ? ` · ${p.luogoRitiro}` : "") : p.luogoRiconsegna ? ` · ${p.luogoRiconsegna}` : ""}
-                      </span>
-                    </Link>
-                  )
-                )}
-              </div>
-            </Panel>
-          )}
 
           <Panel title="Da sistemare">
             {attentionCount === 0 ? (

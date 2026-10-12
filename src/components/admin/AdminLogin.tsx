@@ -91,7 +91,7 @@ export default function AdminLogin() {
               type="checkbox"
               checked={remember}
               onChange={(e) => setRemember(e.target.checked)}
-              className="size-4 accent-blue-600"
+              className="size-4 accent-acc-600"
             />
             Resta collegato su questo dispositivo
           </label>

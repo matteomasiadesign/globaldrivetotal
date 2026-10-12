@@ -24,7 +24,7 @@ import { btnIcon, btnPrimary, inputCls, rowDivider } from "../../ui/styles";
 import { useToast } from "../../ui/Toast";
 
 function PreventivoDrawer({ onClose }: { onClose: () => void }) {
-  const { noleggio, contatti, addPreventivo } = useGestionale();
+  const { noleggio, flotta, contatti, addPreventivo } = useGestionale();
   const toast = useToast();
   const [f, setF] = useState({
     contattoId: "",
@@ -92,7 +92,7 @@ function PreventivoDrawer({ onClose }: { onClose: () => void }) {
           <SelectField
             value={f.veicoloId}
             blank="— non ancora assegnata: scelgo la categoria —"
-            options={noleggio.veicoli.map((v) => ({ value: v.id, label: nomeRentVeicolo(v) }))}
+            options={flotta.map((v) => ({ value: v.id, label: nomeRentVeicolo(v) }))}
             onChange={(v) => set("veicoloId", v)}
           />
         </Field>
