@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { FileSpreadsheet, Mail, Pencil, Phone, Plus, Search, Trash2, Upload, Users } from "lucide-react";
+import { Download, FileSpreadsheet, Mail, Pencil, Phone, Plus, Search, Trash2, Upload, Users } from "lucide-react";
 import { foglioContatti } from "@/lib/export/gestionale";
 import { nomeFile, scaricaXlsx } from "@/lib/export/scrivi";
 import ExportMenu, { useContestoExport } from "../ui/ExportMenu";
@@ -13,8 +13,8 @@ import { telLink } from "@/lib/admin/phone";
 import type { Contatto, TipoContatto } from "@/lib/gestionale/types";
 import { useEditors } from "../AdminEditors";
 import { EmptyState, FilterTabs, PageHeader, Pill, type TabOption } from "../ui/Layout";
-import RowMenu from "../ui/RowMenu";
-import { btnPrimary, btnSecondary, focusRing, inputCls, rowDivider } from "../ui/styles";
+import DataTable from "../ui/DataTable";
+import { btnPrimary, btnSecondary, focusRing, inputCls } from "../ui/styles";
 import { useToast } from "../ui/Toast";
 
 type Filtro = "tutti" | TipoContatto;
@@ -36,6 +36,26 @@ export default function ContattiView() {
     { id: "Cliente", label: "Clienti", count: contatti.filter((c) => matchTipo(c, "Cliente")).length },
     { id: "Fornitore", label: "Fornitori", count: contatti.filter((c) => matchTipo(c, "Fornitore")).length },
   ];
+
+  // Chi ha venduto o comprato un'auto resta in anagrafica: è la controparte della scheda e del contratto.
+  function elimina(lista: Contatto[]) {
+    const bloccati = lista.filter((c) => veicoli.some((v) => v.fornitoreId === c.id || v.acquirenteId === c.id));
+    const eliminabili = lista.filter((c) => !bloccati.includes(c));
+    const annulla = eliminabili.map((c) => deleteContatto(c.id));
+    const msg = [
+      eliminabili.length === 1
+        ? `${eliminabili[0].nome || "Contatto"} eliminato`
+        : eliminabili.length
+          ? `${eliminabili.length} contatti eliminati`
+          : "",
+      bloccati.length === 1
+        ? `${bloccati[0].nome || "Un contatto"} resta: è collegato a un'auto come fornitore o acquirente`
+        : bloccati.length
+          ? `${bloccati.length} restano perché collegati ad auto come fornitore o acquirente`
+          : "",
+    ].filter(Boolean).join(" · ");
+    toast(msg, eliminabili.length ? { label: "Annulla", onClick: () => annulla.reverse().forEach((a) => a()) } : undefined);
+  }
 
   const q = query.trim().toLowerCase();
   const visibili = contatti
@@ -90,70 +110,108 @@ export default function ContattiView() {
         </div>
       </div>
 
-      {visibili.length === 0 ? (
-        <EmptyState
-          icon={Users}
-          title={contatti.length === 0 ? "L'anagrafica è vuota" : "Nessun contatto trovato"}
-          description={contatti.length === 0 ? "I clienti dei contratti vengono salvati qui in automatico." : undefined}
-        />
-      ) : (
-        <div className={`rounded-xl border border-adm-line bg-adm-surface ${rowDivider}`}>
-          {visibili.map((c) => {
-            const patenteScaduta = Boolean(c.scadenzaPatente && c.scadenzaPatente < today);
-            return (
-              <div key={c.id} className="flex items-center gap-3 px-4 py-3">
-                <button
-                  type="button"
-                  onClick={() => openContatto({ contattoId: c.id })}
-                  className={`min-w-0 flex-1 cursor-pointer rounded text-left ${focusRing}`}
-                >
-                  <span className="flex items-center gap-2">
-                    <span className="truncate font-medium text-white">{c.nome || "Senza nome"}</span>
-                    <Pill tone={c.tipo === "Cliente" ? "blue" : c.tipo === "Fornitore" ? "amber" : "slate"}>{c.tipo}</Pill>
-                    {patenteScaduta && <Pill tone="red">Patente scaduta</Pill>}
-                  </span>
-                  <span className="block truncate text-sm text-adm-muted">
-                    {[c.telefono, c.email, c.residenza].filter(Boolean).join(" · ") || "Nessun recapito"}
-                  </span>
+      <DataTable
+        etichetta="Contatti"
+        righe={visibili}
+        chiave={(c) => c.id}
+        onApri={(c) => openContatto({ contattoId: c.id })}
+        ordineIniziale={{ id: "nome", verso: "asc" }}
+        vuoto={
+          <EmptyState
+            icon={Users}
+            title={contatti.length === 0 ? "L'anagrafica è vuota" : "Nessun contatto trovato"}
+            description={
+              contatti.length === 0 ? "I clienti dei contratti vengono salvati qui in automatico; puoi anche importarli da Excel." : undefined
+            }
+            action={
+              contatti.length === 0 ? (
+                <button type="button" onClick={() => openContatto()} className={btnPrimary}>
+                  <Plus className="size-4" />
+                  Nuovo contatto
                 </button>
-                {c.telefono && (
-                  <a href={telLink(c.telefono)} aria-label={`Chiama ${c.nome}`} className="grid size-8 place-items-center rounded-lg text-adm-muted hover:bg-white/10 hover:text-white">
-                    <Phone className="size-4" />
-                  </a>
-                )}
-                {c.email && (
-                  <a href={`mailto:${c.email}`} aria-label={`Scrivi a ${c.nome}`} className="grid size-8 place-items-center rounded-lg text-adm-muted hover:bg-white/10 hover:text-white">
-                    <Mail className="size-4" />
-                  </a>
-                )}
-                <RowMenu
-                  label={`Azioni per ${c.nome}`}
-                  items={[
-                    { label: "Modifica", icon: Pencil, onSelect: () => openContatto({ contattoId: c.id }) },
-                    {
-                      label: "Elimina",
-                      icon: Trash2,
-                      danger: true,
-                      confirm: "Conferma: elimina",
-                      onSelect: () => {
-                        // Chi ha venduto o comprato un'auto resta in anagrafica: è la controparte della scheda e del contratto.
-                        const auto = veicoli.filter((v) => v.fornitoreId === c.id || v.acquirenteId === c.id).length;
-                        if (auto > 0) {
-                          toast(
-                            `${c.nome || "Il contatto"} non si può eliminare: è collegato a ${auto === 1 ? "un'auto" : `${auto} auto`} come fornitore o acquirente`
-                          );
-                          return;
-                        }
-                        toast(`${c.nome || "Contatto"} eliminato`, { label: "Annulla", onClick: deleteContatto(c.id) });
-                      },
-                    },
-                  ]}
-                />
-              </div>
-            );
-          })}
-        </div>
-      )}
+              ) : undefined
+            }
+          />
+        }
+        colonne={[
+          {
+            id: "nome",
+            titolo: "Nome",
+            cella: (c) => (
+              <span className="flex min-w-0 items-center gap-2">
+                <span className="truncate font-medium text-white">{c.nome || "Senza nome"}</span>
+                {c.scadenzaPatente && c.scadenzaPatente < today && <Pill tone="red">Patente scaduta</Pill>}
+              </span>
+            ),
+            ordina: (c) => c.nome.toLowerCase(),
+            mobile: "titolo",
+          },
+          {
+            id: "tipo",
+            titolo: "Tipo",
+            cella: (c) => <Pill tone={c.tipo === "Cliente" ? "blue" : c.tipo === "Fornitore" ? "amber" : "slate"}>{c.tipo}</Pill>,
+            ordina: (c) => c.tipo,
+            mobile: "destra",
+          },
+          {
+            id: "telefono",
+            titolo: "Telefono",
+            cella: (c) =>
+              c.telefono ? (
+                <a href={telLink(c.telefono)} onClick={(e) => e.stopPropagation()} className={`inline-flex items-center gap-1.5 rounded hover:text-white ${focusRing}`}>
+                  <Phone className="size-3.5 text-adm-muted" />
+                  {c.telefono}
+                </a>
+              ) : (
+                <span className="text-adm-muted">—</span>
+              ),
+            mobile: "sotto",
+          },
+          {
+            id: "email",
+            titolo: "Email",
+            cella: (c) =>
+              c.email ? (
+                <a href={`mailto:${c.email}`} onClick={(e) => e.stopPropagation()} className={`inline-flex max-w-[14rem] items-center gap-1.5 truncate rounded hover:text-white ${focusRing}`}>
+                  <Mail className="size-3.5 shrink-0 text-adm-muted" />
+                  <span className="truncate">{c.email}</span>
+                </a>
+              ) : (
+                <span className="text-adm-muted">—</span>
+              ),
+            mobile: "nascosta",
+          },
+          {
+            id: "auto",
+            titolo: "Auto",
+            destra: true,
+            cella: (c) => {
+              const n = veicoli.filter((v) => v.fornitoreId === c.id || v.acquirenteId === c.id).length;
+              return n ? n : <span className="text-adm-muted">—</span>;
+            },
+            ordina: (c) => veicoli.filter((v) => v.fornitoreId === c.id || v.acquirenteId === c.id).length,
+            mobile: "nascosta",
+          },
+        ]}
+        azioni={(c) => [
+          { label: "Apri scheda", icon: Pencil, onSelect: () => openContatto({ contattoId: c.id }) },
+          {
+            label: "Elimina",
+            icon: Trash2,
+            danger: true,
+            confirm: "Conferma: elimina",
+            onSelect: () => elimina([c]),
+          },
+        ]}
+        azioniMultiple={[
+          {
+            label: "Esporta",
+            icon: Download,
+            esegui: (righe) => void scaricaXlsx([foglioContatti(righe, ctx, false)], nomeFile("Contatti_selezionati")),
+          },
+          { label: "Elimina", icon: Trash2, danger: true, esegui: elimina },
+        ]}
+      />
     </>
   );
 }
