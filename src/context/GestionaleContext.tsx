@@ -12,7 +12,6 @@ import React, {
 import { defaultImpostazioni } from "@/config/gestionale";
 import { useAdmin } from "@/context/AdminContext";
 import { useCars } from "@/context/CarContext";
-import { initialGestionale } from "@/data/gestionaleMock";
 import type { Car, CarStatus } from "@/types/car";
 import { catalogoDaStato, nomeVeicolo, statoDaCatalogo } from "@/lib/gestionale/calc";
 import type { DatiAcquirente } from "@/lib/gestionale/contractPdf";
@@ -115,13 +114,22 @@ interface GestionaleContextValue {
   deletePreventivo: (id: string) => void;
   convertiPreventivo: (id: string) => Esito;
 
-  /** Torna ai dati demo. */
-  resetGestionale: () => void;
 }
 
 const GestionaleContext = createContext<GestionaleContextValue | undefined>(undefined);
 
-const STORAGE_KEY = "global_drive_gestionale_v1";
+const STORAGE_KEY = "global_drive_gestionale_v2";
+/** Versione precedente (con i dati demo) e la sua copia: si cancellano alla prima apertura. */
+const LEGACY_KEYS = ["global_drive_gestionale_v1", "global_drive_gestionale_v1_backup"];
+
+const gestionaleVuoto = (): GestionaleData => ({
+  veicoli: [],
+  movimenti: [],
+  contatti: [],
+  impostazioni: { ...defaultImpostazioni },
+  storico: [],
+  noleggio: { veicoli: [], prenotazioni: [], tariffe: [], preventivi: [] },
+});
 const MAX_STORICO = 300;
 
 const uid = (prefix: string) =>
@@ -129,7 +137,7 @@ const uid = (prefix: string) =>
 
 // Un salvataggio di una versione vecchia non deve far perdere i dati: le parti mancanti
 // si riempiono con valori vuoti e i campi aggiunti dopo prendono il loro default. Si
-// riparte dai dati demo solo se il contenuto non è affatto un salvataggio del gestionale.
+// riparte da un gestionale vuoto solo se il contenuto non è affatto un salvataggio.
 const lista = <T,>(v: unknown): T[] =>
   Array.isArray(v) ? (v.filter((x) => x && typeof x === "object") as T[]) : [];
 
@@ -241,7 +249,7 @@ export function GestionaleProvider({ children }: { children: React.ReactNode }) 
   const utente = user?.name || user?.email || "Admin";
 
   const [ready, setReady] = useState(false);
-  const [data, setData] = useState<GestionaleData>(initialGestionale);
+  const [data, setData] = useState<GestionaleData>(gestionaleVuoto);
 
   // Serve a leggere lo stato più recente dentro le azioni che toccano anche il catalogo.
   const dataRef = useRef(data);
@@ -253,6 +261,7 @@ export function GestionaleProvider({ children }: { children: React.ReactNode }) 
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     try {
+      LEGACY_KEYS.forEach((k) => localStorage.removeItem(k));
       const raw = localStorage.getItem(STORAGE_KEY);
       // Copia di sicurezza di ciò che c'era prima di questa sessione, per non perderlo mai in silenzio.
       if (raw) localStorage.setItem(STORAGE_KEY + "_backup", raw);
@@ -868,7 +877,6 @@ export function GestionaleProvider({ children }: { children: React.ReactNode }) 
     [addPrenotazione, updatePreventivo]
   );
 
-  const resetGestionale = useCallback(() => setData(initialGestionale), []);
 
   const value = useMemo<GestionaleContextValue>(
     () => ({
@@ -907,7 +915,6 @@ export function GestionaleProvider({ children }: { children: React.ReactNode }) 
       updatePreventivo,
       deletePreventivo,
       convertiPreventivo,
-      resetGestionale,
     }),
     [
       ready,
@@ -940,7 +947,6 @@ export function GestionaleProvider({ children }: { children: React.ReactNode }) 
       updatePreventivo,
       deletePreventivo,
       convertiPreventivo,
-      resetGestionale,
     ]
   );
 

@@ -3,28 +3,31 @@
 import React, { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
+import { AlertCircle, ArrowLeft } from "lucide-react";
 import { useAdmin } from "@/context/AdminContext";
 import { Field } from "./ui/Field";
 import { btnPrimary, inputCls } from "./ui/styles";
 
-// Login ancora finto (vedi README, roadmap "Autenticazione admin"): accetta
-// qualsiasi credenziale. Nessun dato precompilato e nessuna scorciatoia.
+// Login su Supabase Auth: gli account si creano solo dalla dashboard Supabase
+// (Authentication → Users), qui non c'è registrazione.
 export default function AdminLogin() {
   const { login } = useAdmin();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [remember, setRemember] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    login(
-      {
-        email: email.trim(),
-        name: "Admin",
-      },
-      remember
-    );
+    setError(null);
+    setLoading(true);
+    const message = await login(email.trim(), password, remember);
+    // Se l'accesso riesce il componente sparisce: niente da aggiornare.
+    if (message) {
+      setError(message);
+      setLoading(false);
+    }
   }
 
   return (
@@ -52,6 +55,15 @@ export default function AdminLogin() {
           onSubmit={handleSubmit}
           className="space-y-4 rounded-2xl border border-adm-line bg-adm-surface p-6"
         >
+          {error && (
+            <p
+              role="alert"
+              className="flex items-start gap-2 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-300"
+            >
+              <AlertCircle className="mt-0.5 size-4 shrink-0" />
+              {error}
+            </p>
+          )}
           <Field label="Email">
             <input
               required
@@ -84,14 +96,10 @@ export default function AdminLogin() {
             Resta collegato su questo dispositivo
           </label>
 
-          <button type="submit" className={`${btnPrimary} w-full`}>
-            Accedi
+          <button type="submit" disabled={loading} className={`${btnPrimary} w-full`}>
+            {loading ? "Accesso in corso…" : "Accedi"}
           </button>
         </form>
-
-        <p className="mt-4 text-center text-xs text-adm-muted">
-          Accesso di prova: per ora va bene qualsiasi email e password.
-        </p>
       </div>
     </div>
   );

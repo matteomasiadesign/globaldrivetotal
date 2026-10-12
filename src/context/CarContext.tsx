@@ -2,7 +2,6 @@
 
 import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
 import { Car } from "@/types/car";
-import { initialCars } from "@/data/cars";
 import { deleteCarPhoto } from "@/lib/storage/carPhotos";
 
 interface CarContextType {
@@ -13,19 +12,23 @@ interface CarContextType {
   toggleFeatured: (id: string) => void;
   toggleHidden: (id: string) => void;
   getCarById: (id: string) => Car | undefined;
-  resetToDefault: () => void;
 }
 
 const CarContext = createContext<CarContextType | undefined>(undefined);
 
-const STORAGE_KEY = "global_drive_cars_v2";
+const STORAGE_KEY = "global_drive_cars_v3";
+/** Versioni precedenti, piene di auto demo: si cancellano alla prima apertura. */
+const LEGACY_KEYS = ["global_drive_cars_v2"];
 
 export function CarProvider({ children }: { children: React.ReactNode }) {
-  const [cars, setCars] = useState<Car[]>(initialCars);
+  const [cars, setCars] = useState<Car[]>([]);
   const [isLoaded, setIsLoaded] = useState(false);
 
+  // Lettura dopo il montaggio: il localStorage non esiste sul server.
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     try {
+      LEGACY_KEYS.forEach((k) => localStorage.removeItem(k));
       const stored = localStorage.getItem(STORAGE_KEY);
       if (stored) {
         const parsed = JSON.parse(stored);
@@ -39,6 +42,7 @@ export function CarProvider({ children }: { children: React.ReactNode }) {
       setIsLoaded(true);
     }
   }, []);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   useEffect(() => {
     if (isLoaded) {
@@ -88,11 +92,6 @@ export function CarProvider({ children }: { children: React.ReactNode }) {
     return cars.find((c) => c.id === id);
   };
 
-  const resetToDefault = () => {
-    setCars(initialCars);
-    localStorage.removeItem(STORAGE_KEY);
-  };
-
   return (
     <CarContext.Provider
       value={{
@@ -103,7 +102,6 @@ export function CarProvider({ children }: { children: React.ReactNode }) {
         toggleFeatured,
         toggleHidden,
         getCarById,
-        resetToDefault,
       }}
     >
       {children}

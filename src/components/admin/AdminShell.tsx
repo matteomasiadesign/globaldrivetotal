@@ -22,7 +22,6 @@ import {
   LogOut,
   MoreHorizontal,
   Receipt,
-  RotateCcw,
   Settings,
   Users,
   X,
@@ -111,8 +110,7 @@ function isActive(pathname: string, href: string) {
 }
 
 function UserMenu({ placement, compact = false }: { placement: "top" | "bottom"; compact?: boolean }) {
-  const { user, logout, resetDemoData } = useAdmin();
-  const { resetGestionale } = useGestionale();
+  const { user, logout } = useAdmin();
   const name = user?.name ?? "Admin";
 
   return (
@@ -141,18 +139,7 @@ function UserMenu({ placement, compact = false }: { placement: "top" | "bottom";
           )}
         </>
       }
-      items={[
-        {
-          label: "Ripristina dati demo",
-          icon: RotateCcw,
-          confirm: "Conferma: cancella le modifiche",
-          onSelect: () => {
-            resetDemoData();
-            resetGestionale();
-          },
-        },
-        { label: "Esci", icon: LogOut, onSelect: logout },
-      ]}
+      items={[{ label: "Esci", icon: LogOut, onSelect: logout }]}
     />
   );
 }

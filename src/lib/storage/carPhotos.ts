@@ -1,10 +1,10 @@
 // Unico punto di contatto con lo storage delle foto auto. Oggi le foto finiscono
-// nel localStorage come data URL (stesso posto dei dati finti delle auto);
+// nel localStorage come data URL, dentro la scheda dell'auto;
 // quando arriva Supabase si riscrivono SOLO queste due funzioni:
 //
-//   uploadCarPhoto → supabase.storage.from("cars").upload(`${carId}/${uuid}.webp`, blob)
+//   uploadCarPhoto → supabase.storage.from("car-photos").upload(`${carId}/${uuid}.webp`, blob)
 //                    e ritorna getPublicUrl(path)
-//   deleteCarPhoto → supabase.storage.from("cars").remove([path ricavato dall'url])
+//   deleteCarPhoto → supabase.storage.from("car-photos").remove([path ricavato dall'url])
 //
 // Regole che tengono pulito il bucket:
 //  - si carica solo al salvataggio della scheda (mai alla scelta del file),

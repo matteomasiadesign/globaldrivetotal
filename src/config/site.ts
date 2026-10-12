@@ -85,35 +85,10 @@ export const defaultSiteSettings: SiteSettings = {
   aboutCaptionTitle: "Global Drive Srls",
   aboutCaptionText: "Provincia di Sassari • Consegne a domicilio",
   mapsUrl: "https://maps.google.com",
+  // Statistiche e recensioni si inseriscono da /admin/sito, solo con dati veri:
+  // finché sono vuote le due sezioni non compaiono.
   showStats: true,
-  stats: [
-    { value: "15+", label: "Anni di Passione & Trasparenza" },
-    { value: "1.800+", label: "Vetture Consegnate con Successo" },
-    { value: "3", label: "Servizi: Usato, Commissione, Conto Vendita" },
-    { value: "4.9 / 5", label: "Punteggio Medio Recensioni Google" },
-  ],
+  stats: [],
   showReviews: true,
-  reviews: [
-    {
-      author: "Marco Beltrame",
-      city: "Milano",
-      car: "Volkswagen Golf 1.5 TSI",
-      quote:
-        "Esperienza impeccabile. Ho acquistato a distanza con spedizione tramite bisarca: l'auto era esattamente perfetta come descritto nel video peritale in 4K. Personale altamente preparato e cordiale.",
-    },
-    {
-      author: "Elena Varesi",
-      city: "Bologna",
-      car: "Toyota Yaris Cross Hybrid",
-      quote:
-        "Grande serietà e velocità nella gestione di tutte le pratiche, passaggio di proprietà compreso. Consegna puntuale e assistenza anche dopo l'acquisto. Consigliatissimi!",
-    },
-    {
-      author: "Dott. Claudio Santoro",
-      city: "Roma",
-      car: "Jeep Renegade 1.6 Multijet",
-      quote:
-        "Professionalità e trasparenza dalla scelta alla consegna, con un'auto esattamente come descritta. Sicuramente il mio punto di riferimento per il futuro.",
-    },
-  ],
+  reviews: [],
 };

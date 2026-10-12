@@ -19,13 +19,13 @@ npm run lint
 
 | Area | Stato |
 | --- | --- |
-| Sito pubblico (home, catalogo, servizi) | Funziona, ma legge sempre le auto demo di `src/data/cars.ts` |
+| Sito pubblico (home, catalogo, servizi) | Funziona, ma legge le auto dal `localStorage` del browser: finché non c'è il database il catalogo è vuoto per i visitatori |
 | Parco auto in admin | **Finto**: salvato in `localStorage` del browser (`CarContext`). Le modifiche non arrivano ai clienti |
-| Agenda, documenti e richieste in admin | **Finti**: `localStorage` + dati di `src/data/adminMock.ts` (stato in `src/context/AdminContext.tsx`) |
-| Gestionale (conti, IVA, contatti, noleggio, contratti) | **Funziona ma è in `localStorage`**: dati demo di `src/data/gestionaleMock.ts`, stato in `src/context/GestionaleContext.tsx`. Nessun dato è condiviso tra browser |
-| Login admin | **Finto**: accetta qualsiasi credenziale, nessuna protezione reale su `/admin` |
+| Agenda, documenti e richieste in admin | **In `localStorage`**, partono vuoti (stato in `src/context/AdminContext.tsx`) |
+| Gestionale (conti, IVA, contatti, noleggio, contratti) | **Funziona ma è in `localStorage`**, parte vuoto: stato in `src/context/GestionaleContext.tsx`. Nessun dato è condiviso tra browser |
+| Login admin | **Reale** (Supabase Auth, email + password): unico login, vale per tutto `/admin` compreso il gestionale. Account creati solo dalla dashboard Supabase. I dati dietro restano nel `localStorage` |
 | **Lead dal sito** | **Reali** (vedi sotto): salvati dal server |
-| Pagina "Richieste" in admin | **Finta**: mostra lead demo con la stessa forma di quelli reali (`Lead`), non legge ancora quelli salvati |
+| Pagina "Richieste" in admin | **Vuota**: non legge ancora i lead salvati dal server |
 
 | Casper | Risposte locali simulate; Gemini si attiva solo con `GEMINI_API_KEY` |
 
@@ -104,13 +104,13 @@ Il file `.env.local` non va in git. Crearlo in locale, e **aggiungere un `.env.e
 | --- | --- | --- |
 | `GEMINI_API_KEY` | opzionale | Attiva le risposte AI di Casper (`/api/casper`). Senza, Casper usa il motore locale |
 | `LEADS_FILE_PATH` | opzionale | Percorso del file dei lead. Default `.data/leads.jsonl` |
-| `DATABASE_URL` o equivalente | prevista | Connessione al database (scelta del servizio ancora aperta) |
-| Segreti di autenticazione | previsti | Sessioni admin |
+| `NEXT_PUBLIC_SUPABASE_URL` | **obbligatoria** | Progetto Supabase (Project Settings → API). Senza, il login admin non funziona |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | **obbligatoria** | Chiave pubblica (anon) dello stesso progetto. Va impostata anche sull'hosting prima del build |
 | Chiave del provider email | prevista | Notifiche lead |
 
 ## Schema del database previsto
 
-> **Lo schema definitivo è `supabase/schema.sql`** (sito, gestionale, noleggio, ruoli, storage, RLS, trigger). Non è ancora applicato: si esegue una volta su un progetto Supabase nuovo (istruzioni in testa al file). La bozza qui sotto è la versione precedente, solo per il sito.
+> **Lo schema definitivo è `supabase/schema.sql`** (sito, gestionale, noleggio, ruoli, storage, RLS, trigger). Unisce lo schema del vecchio gestionale: si esegue una volta, sia su un progetto vuoto sia su quello che ha già le tabelle del vecchio gestionale (le sostituisce, gli utenti restano). Istruzioni in testa al file. Nessun dato di prova: in tutto il progetto non ci sono più dati demo. La bozza qui sotto è la versione precedente, solo per il sito.
 
 Bozza delle tabelle, ricavata dai tipi in `src/types/` e dai form. Non è ancora applicata: è indipendente dal servizio scelto (SQL Postgres). Convenzioni: chiavi `uuid`, date `timestamptz`, valori testuali a stati chiusi con `CHECK` (più facili da evolvere degli enum). Nel codice i valori sono etichette italiane ("In Trattativa"): vanno mappati in slug (`in_trattativa`).
 
@@ -243,7 +243,7 @@ Da valutare più avanti:
 Ordine concordato. Il punto 3 (lead) è fatto, con i residui elencati sopra.
 
 1. [ ] **Database e persistenza**: applicare lo schema, spostare auto/agenda/documenti e il gestionale (`src/context/GestionaleContext.tsx`: veicoli, movimenti, contatti, impostazioni, noleggio, storico) da `localStorage`; il gestionale si porta cambiando solo lettura iniziale e salvataggio, vedi gli schemi in `docs/gestionale-originale/supabase/`, foto su bucket Supabase (oggi l'admin le carica dal PC, le comprime nel browser e le tiene come data URL nel `localStorage`: riscrivere solo `uploadCarPhoto`/`deleteCarPhoto` in `src/lib/storage/carPhotos.ts` e aggiungere l'host del bucket in `images.remotePatterns` di `next.config.ts`).
-2. [ ] **Autenticazione admin**: login reale, `proxy.ts` che protegge `/admin`, ruoli, "Password dimenticata?" oggi è solo testo. Rimuovere credenziali precompilate e "Accesso Rapido" da `AdminLogin.tsx`.
+2. [ ] **Autenticazione admin**: login reale su Supabase fatto (`src/lib/supabase/client.ts`, `AdminContext`). Restano: protezione lato server quando i dati passeranno al database (policy RLS, ed eventualmente `proxy.ts`), ruoli admin/operatore, recupero password. In Supabase la registrazione pubblica va tenuta **disattivata** (la chiave anon è pubblica).
 3. [x] **Lead dal sito** (form + Casper): vedi sezione dedicata.
 4. [ ] **Pagine auto e SEO**: `/catalogo/[slug]` renderizzata lato server (oggi catalogo solo client, nessun URL condivisibile), `robots`, `sitemap`, Open Graph, dati strutturati (`AutoDealer`, `Vehicle`), `not-found`, `error`, `loading`.
 5. [ ] **Privacy e conformità**: informativa privacy, cookie policy/banner se si usano strumenti di tracciamento, dati societari (P.IVA) in footer.
@@ -253,6 +253,5 @@ Ordine concordato. Il punto 3 (lead) è fatto, con i residui elencati sopra.
 ### Problemi noti (non legati a una voce sopra)
 
 - `npm run lint` dà 2 errori in `CasperChat.tsx` (`Date.now()` chiamato durante il render, righe ~143 e ~165) e vari warning di import inutilizzati (`servizi/page.tsx`, `CasperChat.tsx`).
-- `CarContext` tratta un elenco auto vuoto come "nessun dato" e ripristina le auto demo: se si cancellano tutte le auto, al ricaricamento tornano.
 - Numeri di telefono: i placeholder (`390000000000`, `393000000000`) in servizi, modale auto e Casper sono stati sostituiti con quello reale, letto da `src/config/site.ts`. **Il numero è ancora scritto a mano** nei link di `ContactSection.tsx` (card telefono, WhatsApp), `Footer.tsx` e `Navbar.tsx`: vanno spostati nello stesso file.
 - Nessun commit nel repository: tutti i file sono ancora "untracked".

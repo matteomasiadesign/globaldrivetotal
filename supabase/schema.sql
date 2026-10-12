@@ -1,10 +1,15 @@
 -- =====================================================================
 -- GLOBAL DRIVE — SCHEMA COMPLETO (Supabase / Postgres 15+)
 --
--- Da eseguire UNA volta, per intero, nell'SQL Editor di un progetto Supabase
--- NUOVO E VUOTO. È un'unica transazione: se qualcosa fallisce non resta niente
--- a metà. Prima di eseguirlo: Authentication → Sign In / Providers →
--- disattiva "Allow new users to sign up" (gli utenti si creano a mano).
+-- Da eseguire UNA volta, per intero, nell'SQL Editor di Supabase. Va bene sia
+-- su un progetto vuoto sia su quello che ha già lo schema del vecchio
+-- gestionale (gestionale-auto-nextjs): la sezione 0 lo sostituisce, gli utenti
+-- restano. È un'unica transazione: se qualcosa fallisce non resta niente a
+-- metà. Prima di eseguirlo: Authentication → Sign In / Providers → disattiva
+-- "Allow new users to sign up" (gli utenti si creano a mano).
+--
+-- Nessun dato di prova: si parte vuoti. Le sole righe inserite sono di
+-- configurazione (impostazioni, categorie dei movimenti, testi del sito).
 --
 -- Copre tutto ciò che oggi vive in localStorage / file:
 --   sito pubblico   cars, car_images, site_settings, leads, casper_*
@@ -43,6 +48,76 @@
 -- =====================================================================
 
 begin;
+
+-- ---------------------------------------------------------------------
+-- 0. Passaggio dal vecchio gestionale
+-- ---------------------------------------------------------------------
+-- Su un progetto vuoto questa sezione non fa niente. Sul progetto con lo
+-- schema del vecchio gestionale (profiles, veicoli, movimenti, contatti,
+-- documenti, audit_log, rent_*) elimina tabelle, funzioni e policy vecchie:
+-- quelle nuove hanno in parte gli stessi nomi ma un'altra struttura. Gli
+-- utenti di Authentication restano e diventano profili staff (sezione 1).
+--
+-- Protezioni:
+--  * se questo schema è già applicato (esiste staff_profiles) si ferma subito;
+--  * se le tabelle vecchie contengono righe si ferma e dice quante. Per
+--    eliminarle comunque (sono dati di prova) metti 'true' qui sotto e riesegui.
+
+select set_config('global_drive.elimina_dati_vecchi', 'false', true);
+
+do $$
+declare
+  t      text;
+  n      bigint;
+  righe  text := '';
+begin
+  if to_regclass('public.staff_profiles') is not null then
+    raise exception 'Schema già applicato (esiste public.staff_profiles): non va rieseguito.';
+  end if;
+  foreach t in array array['veicoli', 'movimenti', 'contatti', 'documenti', 'audit_log', 'rent_veicoli',
+                           'rent_clienti', 'rent_prenotazioni', 'rent_tariffe', 'rent_preventivi', 'auto', 'spese'] loop
+    if to_regclass('public.' || t) is not null then
+      execute format('select count(*) from public.%I', t) into n;
+      if n > 0 then
+        righe := righe || case when righe = '' then '' else ', ' end || t || ' ' || n;
+      end if;
+    end if;
+  end loop;
+  if righe <> '' and current_setting('global_drive.elimina_dati_vecchi') <> 'true' then
+    raise exception 'Le tabelle del vecchio gestionale contengono righe (%). Se sono dati di prova metti ''true'' in set_config(''global_drive.elimina_dati_vecchi'', ...) all''inizio della sezione 0 e riesegui.', righe;
+  end if;
+end $$;
+
+-- I ruoli del vecchio gestionale servono a decidere chi resta admin (sezione 1).
+create temp table _ruoli_vecchi (id uuid primary key, ruolo text) on commit drop;
+do $$
+begin
+  if to_regclass('public.profiles') is not null then
+    insert into _ruoli_vecchi select id, ruolo from public.profiles;
+  end if;
+end $$;
+
+drop trigger if exists on_auth_user_created on auth.users;
+drop table if exists
+  public.audit_log, public.documenti,
+  public.rent_preventivi, public.rent_tariffe, public.rent_prenotazioni, public.rent_clienti, public.rent_veicoli,
+  public.movimenti, public.veicoli, public.contatti, public.impostazioni, public.profiles,
+  public.spese, public.auto
+  cascade;
+drop function if exists public.log_audit();
+drop function if exists public.handle_new_user();
+
+drop policy if exists "Autenticati leggono i file" on storage.objects;
+drop policy if exists "Autenticati caricano file" on storage.objects;
+drop policy if exists "Autenticati eliminano file" on storage.objects;
+-- Il vecchio bucket dei documenti: si elimina solo se è vuoto (e se Supabase lo
+-- consente da SQL); altrimenti resta, senza policy nessuno può leggerlo.
+do $$
+begin
+  delete from storage.buckets where id = 'veicoli-documenti';
+exception when others then
+  raise notice 'Bucket veicoli-documenti non eliminato (%): se non serve, eliminalo da Storage.', sqlerrm;
+end $$;
 
 create extension if not exists btree_gist;   -- serve al vincolo anti-doppia-prenotazione
 
@@ -107,6 +182,25 @@ create policy "staff_profiles: solo admin modifica" on public.staff_profiles
   for update to authenticated using ((select public.is_admin())) with check ((select public.is_admin()));
 create policy "staff_profiles: solo admin elimina" on public.staff_profiles
   for delete to authenticated using ((select public.is_admin()));
+
+-- Utenti che esistono già (creati prima di questo schema). Diventa admin attivo
+-- chi era admin nel vecchio gestionale, oppure l'unico utente confermato se ce
+-- n'è uno solo; tutti gli altri restano inattivi finché un admin non li attiva.
+insert into public.staff_profiles (id, email, full_name, role, active)
+select u.id,
+       coalesce(u.email, ''),
+       coalesce(u.raw_user_meta_data ->> 'full_name', ''),
+       case when promosso then 'admin' else 'operatore' end,
+       promosso
+  from (
+    select u.*,
+           u.email_confirmed_at is not null
+             and (r.ruolo = 'admin'
+                  or (select count(*) from auth.users where email_confirmed_at is not null) = 1) as promosso
+      from auth.users u
+      left join _ruoli_vecchi r on r.id = u.id
+  ) u
+on conflict (id) do nothing;
 
 -- ---------------------------------------------------------------------
 -- 2. Catalogo pubblico: auto e foto
@@ -1259,10 +1353,15 @@ create policy "contratti: solo admin" on storage.objects
 
 commit;
 
+-- Risultato: chi può entrare nell'admin.
+select email, role, active from public.staff_profiles order by created_at;
+
 -- =====================================================================
 -- DOPO L'ESECUZIONE
 --
--- 1) Crea i due utenti: Authentication → Users → Add user (email + password).
+-- Gli utenti che esistevano già sono nella tabella qui sopra (vedi sezione 1).
+-- 1) Crea gli utenti mancanti: Authentication → Users → Add user (email +
+--    password, spunta "Auto Confirm User").
 -- 2) Attivali e dai il ruolo (l'email deve coincidere):
 --
 --      update public.staff_profiles
