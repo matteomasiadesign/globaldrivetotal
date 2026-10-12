@@ -39,7 +39,7 @@ sulle modifiche non salvate, contratti salvati nel dossier e numerati per anno, 
 3. ~~Migrazione 2~~ FATTO: `supabase/migrations/20261013_admin_fasi_2_5.sql` (testata in PGlite, già anche in schema.sql). **L'utente deve eseguirla nell'SQL Editor.**
 4. ~~Oggi: ritiri e riconsegne del noleggio, richieste ferme~~ FATTO (gli incassi scaduti erano già negli avvisi).
 5. ~~Ricerca globale Ctrl+K e Nuovo~~ FATTO: `src/components/admin/CommandPalette.tsx` (Ctrl+K, "/", pulsante in sidebar e lente su telefono).
-6. **Scheda contatto completa** (`ContattoDrawer.tsx`): link alle auto, movimenti, noleggi, richieste, appuntamenti; azioni rapide.
+6. ~~Scheda contatto completa~~ FATTO: in `ContattoDrawer.tsx` «Storia del cliente» con auto, movimenti, richieste, appuntamenti, noleggi e azioni (chiama, fissa appuntamento).
 7. **Pubblica sul catalogo** una scheda fuori catalogo (`VeicoloView.tsx` + `CarDrawer.tsx` collegato alla scheda esistente); campo Servizio in `CarDrawer`.
 8. README e memoria aggiornati; `npx tsc --noEmit -p .`, `npx eslint src`, `npx next build` (4 errori di lint erano già presenti prima: Casper e un `any`).
 
