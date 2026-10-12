@@ -1,19 +1,20 @@
 "use client";
 
 import React from "react";
-import { CalendarClock, Check } from "lucide-react";
+import { CalendarClock, Check, Download, Pencil } from "lucide-react";
 import { useAdmin } from "@/context/AdminContext";
 import { useGestionale } from "@/context/GestionaleContext";
 import { euro, nomeVeicolo } from "@/lib/gestionale/calc";
 import { formatDate } from "@/lib/admin/dates";
 import { foglioScadenzario } from "@/lib/export/gestionale";
-import { nomeFile } from "@/lib/export/scrivi";
+import { nomeFile, scaricaXlsx } from "@/lib/export/scrivi";
+import DataTable from "../ui/DataTable";
 import { useEditors } from "../AdminEditors";
 import { useUrlState } from "../useUrlState";
 import { Note, Stat } from "../ui/Data";
 import ExportMenu, { useContestoExport } from "../ui/ExportMenu";
 import { EmptyState, FilterTabs, PageHeader, Pill, type TabOption } from "../ui/Layout";
-import { btnSecondary, rowDivider } from "../ui/styles";
+import { btnSecondary } from "../ui/styles";
 import { useToast } from "../ui/Toast";
 
 export type ScadenzarioTab = "incassi" | "pagamenti";
@@ -46,11 +47,13 @@ export default function ScadenzarioView({ initialTab = "incassi" }: { initialTab
     { id: "pagamenti", label: "Da pagare", count: pagamenti.length, alert: scaduti(pagamenti).length > 0 },
   ];
 
-  function saldato(id: string) {
-    updateMovimento(id, { statoPagamento: "Saldato", dataSaldo: today });
-    toast(tab === "incassi" ? "Incasso registrato" : "Pagamento registrato", {
+  function salda(righe: typeof lista) {
+    if (righe.length === 0) return;
+    righe.forEach((m) => updateMovimento(m.id, { statoPagamento: "Saldato", dataSaldo: today }));
+    const msg = tab === "incassi" ? "Incass" : "Pagament";
+    toast(righe.length === 1 ? `${msg}o registrato` : `${righe.length} ${msg.toLowerCase()}i registrati`, {
       label: "Annulla",
-      onClick: () => updateMovimento(id, { statoPagamento: "Da saldare", dataSaldo: "" }),
+      onClick: () => righe.forEach((m) => updateMovimento(m.id, { statoPagamento: "Da saldare", dataSaldo: "" })),
     });
   }
 
@@ -89,42 +92,98 @@ export default function ScadenzarioView({ initialTab = "incassi" }: { initialTab
         <FilterTabs tabs={tabs} value={tab} onChange={setTab} label="Incassi o pagamenti" />
       </div>
 
-      {lista.length === 0 ? (
-        <EmptyState
-          icon={CalendarClock}
-          title="Niente in sospeso qui"
-          description="Una scadenza nasce da un movimento segnato «Da saldare» con la data di scadenza."
-        />
-      ) : (
-        <div className={`rounded-xl border border-adm-line bg-adm-surface ${rowDivider}`}>
-          {lista.map((m) => {
-            const scaduto = Boolean(m.dataScadenza && m.dataScadenza < today);
-            const auto = nomeAuto(m.autoId);
-            return (
-              <div key={m.id} className="flex flex-wrap items-center gap-3 px-4 py-3">
-                <button
-                  type="button"
-                  onClick={() => openMovimento({ movimentoId: m.id })}
-                  className="min-w-0 flex-1 basis-48 cursor-pointer text-left"
-                >
-                  <span className="block truncate font-medium text-white">{m.descrizione || m.categoria}</span>
-                  <span className="block truncate text-sm text-adm-muted">
-                    {[m.fornitoreCliente, auto].filter(Boolean).join(" · ") || m.categoria}
-                  </span>
-                </button>
+      <DataTable
+        key={tab}
+        etichetta={tab === "incassi" ? "Da incassare" : "Da pagare"}
+        righe={lista}
+        chiave={(m) => m.id}
+        onApri={(m) => openMovimento({ movimentoId: m.id })}
+        ordineIniziale={{ id: "scadenza", verso: "asc" }}
+        classeRiga={(m) => (m.dataScadenza && m.dataScadenza < today ? "bg-rose-500/[0.05]" : "")}
+        vuoto={
+          <EmptyState
+            icon={CalendarClock}
+            title="Niente in sospeso qui"
+            description="Una scadenza nasce da un movimento segnato «Da saldare» con la data di scadenza."
+          />
+        }
+        colonne={[
+          {
+            id: "scadenza",
+            titolo: "Scadenza",
+            cella: (m) => {
+              const scaduto = Boolean(m.dataScadenza && m.dataScadenza < today);
+              return (
                 <Pill tone={scaduto ? "red" : m.dataScadenza ? "slate" : "amber"}>
                   {m.dataScadenza ? `${scaduto ? "Scaduto il " : "Entro il "}${formatDate(m.dataScadenza)}` : "Senza scadenza"}
                 </Pill>
-                <span className="min-w-24 text-right font-medium tabular-nums text-white">{euro(m.totale)}</span>
-                <button type="button" onClick={() => saldato(m.id)} className={btnSecondary}>
-                  <Check className="size-4" />
-                  Segna saldato
-                </button>
-              </div>
-            );
-          })}
-        </div>
-      )}
+              );
+            },
+            ordina: (m) => m.dataScadenza || "9999",
+            mobile: "destra",
+          },
+          {
+            id: "descrizione",
+            titolo: "Descrizione",
+            cella: (m) => <span className="block max-w-[18rem] truncate font-medium text-white">{m.descrizione || m.categoria}</span>,
+            ordina: (m) => (m.descrizione || m.categoria).toLowerCase(),
+            mobile: "titolo",
+          },
+          {
+            id: "controparte",
+            titolo: tab === "incassi" ? "Cliente" : "Fornitore",
+            cella: (m) => <span className="block max-w-[12rem] truncate">{m.fornitoreCliente || "—"}</span>,
+            ordina: (m) => m.fornitoreCliente.toLowerCase(),
+            mobile: "sotto",
+          },
+          {
+            id: "auto",
+            titolo: "Auto",
+            cella: (m) => <span className="block max-w-[11rem] truncate text-adm-muted">{nomeAuto(m.autoId) ?? "—"}</span>,
+            mobile: "sotto",
+          },
+          {
+            id: "importo",
+            titolo: "Importo",
+            destra: true,
+            cella: (m) => <span className="whitespace-nowrap font-medium text-white">{euro(m.totale)}</span>,
+            ordina: (m) => m.totale,
+            totale: (righe) => euro(righe.reduce((s, m) => s + m.totale, 0)),
+            mobile: "destra",
+          },
+          {
+            id: "salda",
+            titolo: "",
+            cella: (m) => (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  salda([m]);
+                }}
+                className={btnSecondary}
+              >
+                <Check className="size-4" />
+                {tab === "incassi" ? "Incassato" : "Pagato"}
+              </button>
+            ),
+            className: "w-32 text-right",
+            mobile: "nascosta",
+          },
+        ]}
+        azioni={(m) => [
+          { label: tab === "incassi" ? "Segna incassato" : "Segna pagato", icon: Check, onSelect: () => salda([m]) },
+          { label: "Apri movimento", icon: Pencil, onSelect: () => openMovimento({ movimentoId: m.id }) },
+        ]}
+        azioniMultiple={[
+          { label: tab === "incassi" ? "Segna incassati" : "Segna pagati", icon: Check, esegui: salda },
+          {
+            label: "Esporta",
+            icon: Download,
+            esegui: (righe) => void scaricaXlsx([foglioScadenzario(righe, ctx, [`${righe.length} scadenze selezionate`])], nomeFile("Scadenze_selezionate")),
+          },
+        ]}
+      />
 
       <div className="mt-4">
         <Note>Per far comparire una voce qui apri il movimento, scegli «Da saldare» e indica la scadenza.</Note>
