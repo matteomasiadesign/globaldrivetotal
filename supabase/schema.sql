@@ -5,7 +5,8 @@
 -- su un progetto vuoto sia su quello che ha già lo schema del vecchio
 -- gestionale (gestionale-auto-nextjs): la sezione 0 lo sostituisce, gli utenti
 -- restano. È un'unica transazione: se qualcosa fallisce non resta niente a
--- metà. Prima di eseguirlo: Authentication → Sign In / Providers → disattiva
+-- metà (se l'editor esegue comunque le istruzioni una alla volta, non
+-- rieseguire: lo script si fermerebbe subito; copia il messaggio d'errore). Prima di eseguirlo: Authentication → Sign In / Providers → disattiva
 -- "Allow new users to sign up" (gli utenti si creano a mano).
 --
 -- Nessun dato di prova: si parte vuoti. Le sole righe inserite sono di
@@ -61,12 +62,14 @@ begin;
 -- Protezioni:
 --  * se questo schema è già applicato (esiste staff_profiles) si ferma subito;
 --  * se le tabelle vecchie contengono righe si ferma e dice quante. Per
---    eliminarle comunque (sono dati di prova) metti 'true' qui sotto e riesegui.
-
-select set_config('global_drive.elimina_dati_vecchi', 'false', true);
+--    eliminarle comunque (sono dati di prova) metti true in
+--    elimina_dati_vecchi qui sotto e riesegui.
+-- Niente tabelle temporanee né impostazioni di sessione: l'SQL Editor di
+-- Supabase non garantisce che tutte le istruzioni girino nella stessa sessione.
 
 do $$
 declare
+  elimina_dati_vecchi  constant boolean := false;   -- true = elimina anche le righe delle tabelle vecchie
   t      text;
   n      bigint;
   righe  text := '';
@@ -83,17 +86,18 @@ begin
       end if;
     end if;
   end loop;
-  if righe <> '' and current_setting('global_drive.elimina_dati_vecchi') <> 'true' then
-    raise exception 'Le tabelle del vecchio gestionale contengono righe (%). Se sono dati di prova metti ''true'' in set_config(''global_drive.elimina_dati_vecchi'', ...) all''inizio della sezione 0 e riesegui.', righe;
+  if righe <> '' and not elimina_dati_vecchi then
+    raise exception 'Le tabelle del vecchio gestionale contengono righe (%). Se sono dati di prova metti true in elimina_dati_vecchi all''inizio della sezione 0 e riesegui.', righe;
   end if;
 end $$;
 
 -- I ruoli del vecchio gestionale servono a decidere chi resta admin (sezione 1).
-create temp table _ruoli_vecchi (id uuid primary key, ruolo text) on commit drop;
+-- Tabella normale (non temporanea), eliminata subito dopo l'uso.
+create table if not exists public._ruoli_vecchi (id uuid primary key, ruolo text);
 do $$
 begin
   if to_regclass('public.profiles') is not null then
-    insert into _ruoli_vecchi select id, ruolo from public.profiles;
+    insert into public._ruoli_vecchi select id, ruolo from public.profiles on conflict (id) do nothing;
   end if;
 end $$;
 
@@ -198,9 +202,10 @@ select u.id,
              and (r.ruolo = 'admin'
                   or (select count(*) from auth.users where email_confirmed_at is not null) = 1) as promosso
       from auth.users u
-      left join _ruoli_vecchi r on r.id = u.id
+      left join public._ruoli_vecchi r on r.id = u.id
   ) u
 on conflict (id) do nothing;
+drop table public._ruoli_vecchi;
 
 -- ---------------------------------------------------------------------
 -- 2. Catalogo pubblico: auto e foto

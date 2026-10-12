@@ -62,7 +62,7 @@ Ogni sezione è una rotta con un solo compito; `src/app/admin/layout.tsx` mette 
 
 **Viste condivisibili.** Tab e filtri delle pagine (`?tab=`, `?stato=`, `?filtro=`) si aggiornano nell'indirizzo mentre si usano, senza riempire la cronologia: ricaricando o condividendo il link si ritrova la stessa vista.
 
-**Il gestionale è il cardine del backoffice.** Ogni auto del catalogo ha una scheda economica (`Veicolo`, collegata con `carId`): lo stato scelto lì (o nel parco auto) decide cosa mostra il sito (`catalogoDaStato` in `src/lib/gestionale/calc.ts`), e il contratto di vendita segna l'auto venduta e salva il cliente in anagrafica. Le formule (costo, margine, IVA, ROI, liquidazione) sono funzioni pure in `src/lib/gestionale/calc.ts`; il noleggio in `rent.ts`; il PDF del contratto in `contractPdf.ts`. Ragione sociale, P.IVA, sede e contatti del venditore nei contratti si leggono da `/admin/sito`. Il gestionale originale (Next 14 + Supabase) è documentato in `docs/gestionale-originale/` con i suoi schemi SQL, utili quando si scriverà il database.
+**Il gestionale è il cardine del backoffice.** Ogni auto del catalogo ha una scheda economica (`Veicolo`, collegata con `carId`): lo stato scelto lì (o nel parco auto) decide cosa mostra il sito (`catalogoDaStato` in `src/lib/gestionale/calc.ts`), e il contratto di vendita segna l'auto venduta e salva il cliente in anagrafica. Le formule (costo, margine, IVA, ROI, liquidazione) sono funzioni pure in `src/lib/gestionale/calc.ts`; il noleggio in `rent.ts`; il PDF del contratto in `contractPdf.ts`. Ragione sociale, P.IVA, sede e contatti del venditore nei contratti si leggono da `/admin/sito`.
 
 Creazione e modifica avvengono in pannelli laterali (`AppointmentDrawer`, `CarDrawer`, ...) apribili da qualunque pagina via `useEditors()`. I filtri iniziali si passano dall'URL (`?stato=`, `?tab=`, `?filtro=`, `?auto=`). Attenzione: `?auto=` in `/admin/documenti` è l'id dell'auto (o della scheda, per le auto fuori catalogo), in `/admin/movimenti` è l'id della scheda economica. Componenti base in `src/components/admin/ui/`.
 
@@ -108,141 +108,15 @@ Il file `.env.local` non va in git. Crearlo in locale, e **aggiungere un `.env.e
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | **obbligatoria** | Chiave pubblica (anon) dello stesso progetto. Va impostata anche sull'hosting prima del build |
 | Chiave del provider email | prevista | Notifiche lead |
 
-## Schema del database previsto
+## Schema del database
 
-> **Lo schema definitivo è `supabase/schema.sql`** (sito, gestionale, noleggio, ruoli, storage, RLS, trigger). Unisce lo schema del vecchio gestionale: si esegue una volta, sia su un progetto vuoto sia su quello che ha già le tabelle del vecchio gestionale (le sostituisce, gli utenti restano). Istruzioni in testa al file. Nessun dato di prova: in tutto il progetto non ci sono più dati demo. La bozza qui sotto è la versione precedente, solo per il sito.
-
-Bozza delle tabelle, ricavata dai tipi in `src/types/` e dai form. Non è ancora applicata: è indipendente dal servizio scelto (SQL Postgres). Convenzioni: chiavi `uuid`, date `timestamptz`, valori testuali a stati chiusi con `CHECK` (più facili da evolvere degli enum). Nel codice i valori sono etichette italiane ("In Trattativa"): vanno mappati in slug (`in_trattativa`).
-
-```sql
--- AUTO ----------------------------------------------------------------
-create table cars (
-  id            uuid primary key default gen_random_uuid(),
-  slug          text unique not null,            -- per /catalogo/[slug] (SEO)
-  brand         text not null,
-  model         text not null,
-  version       text not null,
-  year          int  not null,
-  mileage_km    int  not null check (mileage_km >= 0),
-  price_eur     numeric(10,2) not null check (price_eur >= 0),
-  fuel          text not null check (fuel in ('benzina','diesel','ibrida','elettrica')),
-  transmission  text not null check (transmission in ('automatico','manuale')),
-  power_cv      int  not null,
-  category      text not null check (category in ('sportiva','suv','berlina','coupe','cabrio')),
-  status        text not null default 'disponibile'
-                check (status in ('disponibile','in_trattativa','venduta')),
-  featured      boolean not null default false,  -- vetrina in home
-  hidden        boolean not null default false,  -- nascosta dal catalogo pubblico
-  description   text not null default '',
-  features      text[] not null default '{}',
-  location      text not null,
-  created_at    timestamptz not null default now(),
-  updated_at    timestamptz not null default now()
-);
-create index on cars (hidden, status, price_eur);
-
--- Oggi `images` è un array di URL: con l'upload diventano file in uno storage.
-create table car_images (
-  id           uuid primary key default gen_random_uuid(),
-  car_id       uuid not null references cars(id) on delete cascade,
-  storage_path text not null,
-  position     int  not null default 0,          -- 0 = foto principale
-  alt          text,
-  unique (car_id, position)
-);
-
--- LEAD ----------------------------------------------------------------
-create table leads (
-  id            uuid primary key default gen_random_uuid(),
-  type          text not null check (type in
-                ('contatto','test_drive','commissione','conto_vendita','casper')),
-  status        text not null default 'nuovo'
-                check (status in ('nuovo','in_gestione','completato','scartato')),
-  phone         text not null,
-  name          text,
-  email         text,
-  message       text,
-  car_id        uuid references cars(id) on delete set null,
-  car_label     text,                            -- copia testuale: resta se l'auto viene cancellata
-  details       jsonb,                           -- budget, anno minimo, km, prezzo desiderato...
-  source_path   text,
-  privacy_accepted_at timestamptz,               -- null finché non c'è la checkbox
-  assigned_to   uuid references staff_profiles(id),
-  internal_notes text,
-  created_at    timestamptz not null default now(),
-  updated_at    timestamptz not null default now()
-);
-create index on leads (status, created_at desc);
-create index on leads (car_id);
-
--- AGENDA --------------------------------------------------------------
-create table appointments (
-  id            uuid primary key default gen_random_uuid(),
-  lead_id       uuid references leads(id) on delete set null,  -- "Fissa in agenda" da un lead
-  client_name   text not null,
-  client_phone  text not null,
-  client_email  text,
-  starts_at     timestamptz not null,            -- oggi date + time separati; fuso Europe/Rome
-  duration_minutes int not null default 60,
-  type          text not null check (type in
-                ('test_drive','trattativa','consegna','perizia_permuta',
-                 'consulenza_finanziamento','ritiro_documenti')),
-  car_id        uuid references cars(id) on delete set null,
-  car_label     text,
-  location      text not null,
-  status        text not null default 'in_attesa'
-                check (status in ('confermato','in_attesa','completato','annullato')),
-  notes         text,
-  created_at    timestamptz not null default now()
-);
-create index on appointments (starts_at);
-
--- DOCUMENTI -----------------------------------------------------------
-create table vehicle_documents (
-  id               uuid primary key default gen_random_uuid(),
-  car_id           uuid not null references cars(id) on delete cascade,
-  title            text not null,
-  category         text not null check (category in
-                   ('contratto_vendita','libretto_duc','certificato_proprieta',
-                    'tagliandi_manutenzione','perizia_110_punti',
-                    'garanzia_assicurazione','altro')),
-  source           text not null check (source in ('google_drive','generated_html','local_pdf')),
-  file_url         text,
-  drive_folder_url text,
-  file_size_bytes  bigint,
-  notes            text,
-  created_at       timestamptz not null default now()
-);
-create index on vehicle_documents (car_id);
-
--- STAFF ---------------------------------------------------------------
-create table staff_profiles (
-  id         uuid primary key,                   -- = id utente del sistema di autenticazione
-  full_name  text not null,
-  role       text not null default 'operatore' check (role in ('admin','operatore')),
-  created_at timestamptz not null default now()
-);
-```
-
-Regole di accesso previste (da trasformare nel meccanismo del servizio scelto):
-
-- **Pubblico**: legge solo `cars` con `hidden = false` e le relative `car_images`. Non legge mai lead, agenda o documenti.
-- **Sito → lead**: solo scrittura, e solo dal server (la route `/api/leads`). Nessuna lettura pubblica.
-- **Staff** (`staff_profiles`): lettura e scrittura su tutto. Solo `admin` può cancellare auto o documenti e gestire lo staff.
-- **Dati personali**: lead, agenda e documenti contengono dati di clienti (GDPR). I contratti di vendita (`SaleDocumentDraft` in `src/types/admin.ts`) contengono anche il codice fiscale: **non** vanno salvati finché non è deciso dove e per quanto tempo conservarli.
-
-Da valutare più avanti:
-
-- Tabella `customers` per unire lead, appuntamenti e vendite dello stesso cliente (oggi i dati cliente sono copiati in ogni record).
-- Tabella per lo storico dei cambi di stato dei lead.
-- Tabella per le conversazioni di Casper (solo con consenso e per un tempo limitato).
-- Tabella per le bozze di contratto, quando si decide come proteggere i dati.
+Lo schema è `supabase/schema.sql`: sito, gestionale, noleggio, ruoli, storage, permessi (RLS) e trigger. Ha già assorbito lo schema del vecchio gestionale. Si esegue una volta nell'SQL Editor di Supabase, sia su un progetto vuoto sia su quello che ha ancora le tabelle del vecchio gestionale (le sostituisce, gli utenti restano). Istruzioni e regole di accesso sono in testa al file. Non contiene dati di prova.
 
 ## Roadmap
 
 Ordine concordato. Il punto 3 (lead) è fatto, con i residui elencati sopra.
 
-1. [ ] **Database e persistenza**: applicare lo schema, spostare auto/agenda/documenti e il gestionale (`src/context/GestionaleContext.tsx`: veicoli, movimenti, contatti, impostazioni, noleggio, storico) da `localStorage`; il gestionale si porta cambiando solo lettura iniziale e salvataggio, vedi gli schemi in `docs/gestionale-originale/supabase/`, foto su bucket Supabase (oggi l'admin le carica dal PC, le comprime nel browser e le tiene come data URL nel `localStorage`: riscrivere solo `uploadCarPhoto`/`deleteCarPhoto` in `src/lib/storage/carPhotos.ts` e aggiungere l'host del bucket in `images.remotePatterns` di `next.config.ts`).
+1. [ ] **Database e persistenza**: applicare lo schema, spostare auto/agenda/documenti e il gestionale (`src/context/GestionaleContext.tsx`: veicoli, movimenti, contatti, impostazioni, noleggio, storico) da `localStorage`; il gestionale si porta cambiando solo lettura iniziale e salvataggio, tabelle già pronte in `supabase/schema.sql`, foto su bucket Supabase (oggi l'admin le carica dal PC, le comprime nel browser e le tiene come data URL nel `localStorage`: riscrivere solo `uploadCarPhoto`/`deleteCarPhoto` in `src/lib/storage/carPhotos.ts` e aggiungere l'host del bucket in `images.remotePatterns` di `next.config.ts`).
 2. [ ] **Autenticazione admin**: login reale su Supabase fatto (`src/lib/supabase/client.ts`, `AdminContext`). Restano: protezione lato server quando i dati passeranno al database (policy RLS, ed eventualmente `proxy.ts`), ruoli admin/operatore, recupero password. In Supabase la registrazione pubblica va tenuta **disattivata** (la chiave anon è pubblica).
 3. [x] **Lead dal sito** (form + Casper): vedi sezione dedicata.
 4. [ ] **Pagine auto e SEO**: `/catalogo/[slug]` renderizzata lato server (oggi catalogo solo client, nessun URL condivisibile), `robots`, `sitemap`, Open Graph, dati strutturati (`AutoDealer`, `Vehicle`), `not-found`, `error`, `loading`.
