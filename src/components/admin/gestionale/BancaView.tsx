@@ -1,7 +1,9 @@
 "use client";
 
 import React, { useState } from "react";
-import { Landmark, Search, Upload } from "lucide-react";
+import { Check, Landmark, Search, Upload } from "lucide-react";
+import DataTable from "../ui/DataTable";
+import { useToast } from "../ui/Toast";
 import { foglioBanca } from "@/lib/export/gestionale";
 import { nomeFile } from "@/lib/export/scrivi";
 import ExportMenu, { useContestoExport } from "../ui/ExportMenu";
@@ -15,7 +17,7 @@ import { Stat } from "../ui/Data";
 import { Switch } from "../ui/Field";
 import { TextField } from "../ui/Inputs";
 import { EmptyState, PageHeader } from "../ui/Layout";
-import { inputCls, rowDivider } from "../ui/styles";
+import { inputCls } from "../ui/styles";
 
 // Riconciliazione bancaria: i movimenti pagati con un metodo bancario (Impostazioni →
 // Banca) si spuntano quando si ritrovano sull'estratto conto, con il riferimento della banca.
@@ -23,6 +25,7 @@ export default function BancaView() {
   const { today } = useAdmin();
   const { movimenti, veicoli, impostazioni, updateMovimento } = useGestionale();
   const ctx = useContestoExport();
+  const toast = useToast();
   const [soloDaFare, setSoloDaFare] = useState(true);
   const [query, setQuery] = useState("");
   const [importa, setImporta] = useState(false);
@@ -110,52 +113,116 @@ export default function BancaView() {
         </div>
       </div>
 
-      {visibili.length === 0 ? (
-        <EmptyState
-          icon={Landmark}
-          title={soloDaFare ? "Tutto riconciliato" : "Nessun movimento bancario"}
-          description={
-            metodi
-              ? `Qui compaiono i movimenti pagati con ${metodi} (si cambia da Impostazioni).`
-              : "Nessun metodo di pagamento è indicato come bancario: sceglili in Impostazioni."
-          }
-        />
-      ) : (
-        <div className={`rounded-xl border border-adm-line bg-adm-surface ${rowDivider}`}>
-          {visibili.map((m) => (
-            <div key={m.id} className={`flex flex-wrap items-center gap-3 px-4 py-3 ${m.riconciliato ? "bg-emerald-500/5" : ""}`}>
-              <div className="min-w-0 flex-1 basis-48">
-                <span className="block truncate font-medium text-white">{m.descrizione || m.categoria}</span>
-                <span className="block truncate text-sm text-adm-muted">
-                  {formatDate(m.data)} · {nomeAuto(m.autoId)}
+      <DataTable
+        etichetta="Movimenti bancari"
+        righe={visibili}
+        chiave={(m) => m.id}
+        ordineIniziale={{ id: "data", verso: "desc" }}
+        classeRiga={(m) => (m.riconciliato ? "bg-emerald-500/[0.04]" : "")}
+        vuoto={
+          <EmptyState
+            icon={Landmark}
+            title={soloDaFare ? "Tutto riconciliato" : "Nessun movimento bancario"}
+            description={
+              metodi
+                ? `Qui compaiono i movimenti pagati con ${metodi} (si cambia da Impostazioni).`
+                : "Nessun metodo di pagamento è indicato come bancario: sceglili in Impostazioni."
+            }
+          />
+        }
+        colonne={[
+          {
+            id: "data",
+            titolo: "Data",
+            cella: (m) => <span className="whitespace-nowrap tabular-nums">{formatDate(m.data)}</span>,
+            ordina: (m) => m.data,
+            mobile: "sotto",
+            className: "w-28",
+          },
+          {
+            id: "descrizione",
+            titolo: "Descrizione",
+            cella: (m) => (
+              <span className="block max-w-[16rem] truncate">
+                <span className="font-medium text-white">{m.descrizione || m.categoria}</span>
+                <span className="block truncate text-xs text-adm-muted">
+                  {[m.fornitoreCliente, nomeAuto(m.autoId)].filter(Boolean).join(" · ")}
                 </span>
-              </div>
-              <span className={`min-w-24 text-right font-medium tabular-nums ${m.tipo === "Entrata" ? "text-emerald-400" : "text-slate-100"}`}>
+              </span>
+            ),
+            ordina: (m) => (m.descrizione || m.categoria).toLowerCase(),
+            mobile: "titolo",
+          },
+          {
+            id: "importo",
+            titolo: "Importo",
+            destra: true,
+            cella: (m) => (
+              <span className={`whitespace-nowrap font-medium ${m.tipo === "Entrata" ? "text-emerald-400" : "text-slate-100"}`}>
                 {m.tipo === "Entrata" ? "+" : "−"} {euro(m.totale)}
               </span>
-              <TextField
-                value={m.riferimentoEstratto}
-                onCommit={(riferimentoEstratto) => updateMovimento(m.id, { riferimentoEstratto })}
-                placeholder="Riferimento banca"
-                aria-label={`Riferimento sull'estratto conto per ${m.descrizione || m.categoria}`}
-                className={`${inputCls} sm:w-48`}
-              />
-              <Switch
-                compact
-                checked={m.riconciliato}
-                onChange={(riconciliato) => riconcilia(m, riconciliato)}
-                label={
-                  m.riconciliato
-                    ? "Riconciliato: clic per togliere"
-                    : m.statoPagamento === "Da saldare"
-                      ? "Segna come riconciliato (diventa anche saldato)"
-                      : "Segna come riconciliato"
-                }
-              />
-            </div>
-          ))}
-        </div>
-      )}
+            ),
+            ordina: (m) => (m.tipo === "Entrata" ? m.totale : -m.totale),
+            totale: (righe) => euro(righe.reduce((s, m) => s + (m.tipo === "Entrata" ? m.totale : -m.totale), 0)),
+            mobile: "destra",
+          },
+          {
+            id: "riferimento",
+            titolo: "Riferimento banca",
+            cella: (m) => (
+              <div onClick={(e) => e.stopPropagation()}>
+                <TextField
+                  value={m.riferimentoEstratto}
+                  onCommit={(riferimentoEstratto) => updateMovimento(m.id, { riferimentoEstratto })}
+                  placeholder="CRO / riferimento"
+                  aria-label={`Riferimento sull'estratto conto per ${m.descrizione || m.categoria}`}
+                  className={`${inputCls} w-44`}
+                />
+              </div>
+            ),
+            mobile: "nascosta",
+          },
+          {
+            id: "riconciliato",
+            titolo: "Riconciliato",
+            cella: (m) => (
+              <div onClick={(e) => e.stopPropagation()} className="flex justify-center">
+                <Switch
+                  checked={m.riconciliato}
+                  onChange={(riconciliato) => riconcilia(m, riconciliato)}
+                  label={
+                    m.riconciliato
+                      ? "Riconciliato: clic per togliere"
+                      : m.statoPagamento === "Da saldare"
+                        ? "Segna come riconciliato (diventa anche saldato)"
+                        : "Segna come riconciliato"
+                  }
+                />
+              </div>
+            ),
+            ordina: (m) => (m.riconciliato ? 1 : 0),
+            mobile: "destra",
+            className: "w-28",
+          },
+        ]}
+        azioniMultiple={[
+          {
+            label: "Segna riconciliati",
+            icon: Check,
+            esegui: (righe) => {
+              const da = righe.filter((m) => !m.riconciliato);
+              da.forEach((m) => riconcilia(m, true));
+              toast(`${da.length} movimenti riconciliati`, {
+                label: "Annulla",
+                onClick: () =>
+                  da.forEach((m) =>
+                    updateMovimento(m.id, { riconciliato: false, statoPagamento: m.statoPagamento, dataSaldo: m.dataSaldo })
+                  ),
+              });
+            },
+          },
+        ]}
+      />
     </>
   );
 }
