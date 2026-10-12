@@ -23,6 +23,7 @@ import {
   LogOut,
   MoreHorizontal,
   Receipt,
+  Search,
   Settings,
   Users,
   X,
@@ -33,6 +34,7 @@ import { useGestionale } from "@/context/GestionaleContext";
 import { isAdminOnlyPath } from "@/lib/admin/access";
 import { isOpenAppointment } from "@/lib/admin/constants";
 import AdminLogin from "./AdminLogin";
+import CommandPalette from "./CommandPalette";
 import { EditorsProvider } from "./AdminEditors";
 import { EmptyState } from "./ui/Layout";
 import RowMenu from "./ui/RowMenu";
@@ -179,6 +181,21 @@ function Badge({ value, className }: { value: number; className: string }) {
 function Frame({ children }: { children: React.ReactNode }) {
   const pathname = usePathname() ?? "";
   const { isAdmin } = useAdmin();
+  const [cerca, setCerca] = useState(false);
+
+  // Ctrl+K (o Cmd+K) apre la ricerca da qualunque pagina; "/" anche, se non si sta scrivendo.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement | null;
+      const scrivendo = t && (t.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(t.tagName));
+      if (((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") || (e.key === "/" && !scrivendo)) {
+        e.preventDefault();
+        setCerca(true);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
   const groups = useNavGroups();
   const [moreOpen, setMoreOpen] = useState(false);
   const sheetRef = useRef<HTMLDivElement>(null);
@@ -213,6 +230,15 @@ function Frame({ children }: { children: React.ReactNode }) {
       <aside className="sticky top-0 hidden h-screen w-60 shrink-0 flex-col border-r border-adm-line bg-adm-surface lg:flex">
         <div className="px-4 py-5">
           <Brand />
+          <button
+            type="button"
+            onClick={() => setCerca(true)}
+            className="mt-4 flex w-full cursor-pointer items-center gap-2 rounded-lg border border-adm-line bg-white/5 px-3 py-2 text-sm text-adm-muted transition-colors hover:text-white focus-visible:outline-2 focus-visible:outline-blue-400"
+          >
+            <Search className="size-4" />
+            <span className="flex-1 text-left">Cerca o crea…</span>
+            <kbd className="rounded border border-adm-line px-1 text-[11px]">Ctrl K</kbd>
+          </button>
         </div>
 
         <nav aria-label="Sezioni" className="flex-1 space-y-4 overflow-y-auto px-3 pb-3">
@@ -268,8 +294,19 @@ function Frame({ children }: { children: React.ReactNode }) {
         {/* Barra superiore (mobile) */}
         <header className="sticky top-0 z-30 flex items-center justify-between border-b border-adm-line bg-adm-surface/95 px-4 py-2.5 backdrop-blur lg:hidden">
           <Brand />
-          <UserMenu placement="bottom" compact />
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => setCerca(true)}
+              aria-label="Cerca o crea"
+              className="grid size-10 cursor-pointer place-items-center rounded-lg text-adm-muted hover:bg-white/8 hover:text-white"
+            >
+              <Search className="size-5" />
+            </button>
+            <UserMenu placement="bottom" compact />
+          </div>
         </header>
+        <CommandPalette open={cerca} onClose={() => setCerca(false)} />
 
         <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 pb-28 sm:px-6 lg:px-8 lg:py-8 lg:pb-10">
           {!isAdmin && isAdminOnlyPath(pathname) ? (
