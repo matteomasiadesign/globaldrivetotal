@@ -9,6 +9,7 @@ import {
   CalendarPlus,
   CheckCircle2,
   Inbox,
+  KeyRound,
   Plus,
   type LucideIcon,
 } from "lucide-react";
@@ -19,7 +20,7 @@ import { isOpenAppointment } from "@/lib/admin/constants";
 import { formatLongDate, greeting, timeAgo } from "@/lib/admin/dates";
 import { getDossier } from "@/lib/admin/documents";
 import { annoNum, computeAvvisi, computeVeicolo, euro, liquidazioneTrimestre, trimestreDaVersare } from "@/lib/gestionale/calc";
-import { computeAvvisiRent } from "@/lib/gestionale/rent";
+import { computeAvvisiRent, nomeRentVeicolo } from "@/lib/gestionale/rent";
 import { useEditors } from "../AdminEditors";
 import AppointmentRow from "../AppointmentRow";
 import LeadRow from "../LeadRow";
@@ -126,8 +127,28 @@ export default function TodayView() {
   const daVersare = trimestreDaVersare(today);
   const ivaDaVersare = liquidazioneTrimestre(daVersare.trim, veicoli, movimenti, impostazioni, today, daVersare.anno).totale;
 
+  // Noleggio: chi passa a ritirare o riportare un'auto oggi.
+  const ritiriOggi = noleggio.prenotazioni.filter((p) => p.stato === "Prenotata" && p.dataInizio === today);
+  const riconsegneOggi = noleggio.prenotazioni.filter((p) => p.stato === "In corso" && p.dataFine === today);
+  const nomeRent = (id: string) => {
+    const v = noleggio.veicoli.find((x) => x.id === id);
+    return v ? nomeRentVeicolo(v) : "Auto eliminata";
+  };
+  const clienteRent = (p: { contattoId: string | null; clienteNomeLibero: string }) =>
+    contatti.find((c) => c.id === p.contattoId)?.nome || p.clienteNomeLibero || "cliente non indicato";
+
+  // Richieste prese in carico ma ferme: nessun appuntamento aperto e più vecchie di una settimana.
+  const settimanaFa = now - 7 * 86_400_000;
+  const fermeInGestione = leads.filter(
+    (l) =>
+      l.status === "in_gestione" &&
+      Date.parse(l.createdAt) < settimanaFa &&
+      !appointments.some((a) => a.leadId === l.id && isOpenAppointment(a.status))
+  );
+
   const firstName = (user?.name ?? "").split(" ")[0];
-  const attentionCount = overdue.length + hiddenCars.length + incompleteDossiers.length + avvisi.length;
+  const attentionCount =
+    overdue.length + hiddenCars.length + incompleteDossiers.length + avvisi.length + fermeInGestione.length;
 
   return (
     <>
@@ -274,6 +295,35 @@ export default function TodayView() {
             )}
           </Panel>
 
+          {(ritiriOggi.length > 0 || riconsegneOggi.length > 0) && (
+            <Panel
+              title="Noleggio oggi"
+              action={
+                <Link href="/admin/noleggio?tab=prenotazioni" className="text-sm text-blue-400 hover:text-blue-300">
+                  Prenotazioni
+                </Link>
+              }
+            >
+              <div className="divide-y divide-adm-line">
+                {[...ritiriOggi.map((p) => ({ p, cosa: "Ritiro" })), ...riconsegneOggi.map((p) => ({ p, cosa: "Riconsegna" }))].map(
+                  ({ p, cosa }) => (
+                    <Link
+                      key={`${cosa}-${p.id}`}
+                      href="/admin/noleggio?tab=prenotazioni"
+                      className="flex items-center gap-3 px-4 py-3 text-sm transition-colors hover:bg-white/5"
+                    >
+                      <KeyRound className={`size-4 shrink-0 ${cosa === "Ritiro" ? "text-blue-400" : "text-emerald-400"}`} />
+                      <span className="min-w-0 flex-1 truncate text-slate-200">
+                        <span className="font-medium text-white">{cosa}</span> · {nomeRent(p.veicoloId)} · {clienteRent(p)}
+                        {cosa === "Ritiro" ? (p.luogoRitiro ? ` · ${p.luogoRitiro}` : "") : p.luogoRiconsegna ? ` · ${p.luogoRiconsegna}` : ""}
+                      </span>
+                    </Link>
+                  )
+                )}
+              </div>
+            </Panel>
+          )}
+
           <Panel title="Da sistemare">
             {attentionCount === 0 ? (
               <div className="flex items-center gap-3 px-4 py-6 text-sm text-adm-muted">
@@ -287,6 +337,13 @@ export default function TodayView() {
                     {overdue.length === 1
                       ? "1 appuntamento passato da chiudere"
                       : `${overdue.length} appuntamenti passati da chiudere`}
+                  </AttentionRow>
+                )}
+                {fermeInGestione.length > 0 && (
+                  <AttentionRow href="/admin/richieste?stato=in_gestione" icon={AlertCircle}>
+                    {fermeInGestione.length === 1
+                      ? "1 richiesta in gestione da più di 7 giorni senza appuntamento"
+                      : `${fermeInGestione.length} richieste in gestione da più di 7 giorni senza appuntamento`}
                   </AttentionRow>
                 )}
                 {incompleteDossiers.length > 0 && (

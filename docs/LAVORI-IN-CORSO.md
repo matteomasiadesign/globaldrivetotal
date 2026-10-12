@@ -37,7 +37,7 @@ sulle modifiche non salvate, contratti salvati nel dossier e numerati per anno, 
 1. ~~Impostazioni: interruttore IVA noleggio e backup~~ FATTO.
 2. ~~Noleggio: import flotta, export, blocco eliminazione con noleggio in corso~~ FATTO.
 3. ~~Migrazione 2~~ FATTO: `supabase/migrations/20261013_admin_fasi_2_5.sql` (testata in PGlite, già anche in schema.sql). **L'utente deve eseguirla nell'SQL Editor.**
-4. **Oggi** (`TodayView.tsx`): ritiri e riconsegne del noleggio di oggi, incassi scaduti, richieste in gestione ferme.
+4. ~~Oggi: ritiri e riconsegne del noleggio, richieste ferme~~ FATTO (gli incassi scaduti erano già negli avvisi).
 5. **Ricerca globale Ctrl+K** e «+ Nuovo» globale (usa `useEditors()` di `AdminEditors.tsx`).
 6. **Scheda contatto completa** (`ContattoDrawer.tsx`): link alle auto, movimenti, noleggi, richieste, appuntamenti; azioni rapide.
 7. **Pubblica sul catalogo** una scheda fuori catalogo (`VeicoloView.tsx` + `CarDrawer.tsx` collegato alla scheda esistente); campo Servizio in `CarDrawer`.
