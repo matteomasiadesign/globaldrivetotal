@@ -79,5 +79,6 @@ export function detailLabel(key: string): string {
   return spaced.charAt(0).toUpperCase() + spaced.slice(1);
 }
 
+// Stesso formato di `euro` (calc.ts) ma senza centesimi: prezzi di listino, importi tondi.
 export const eur = (n: number) =>
-  `€ ${new Intl.NumberFormat("it-IT").format(n)}`;
+  (Number(n) || 0).toLocaleString("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 });

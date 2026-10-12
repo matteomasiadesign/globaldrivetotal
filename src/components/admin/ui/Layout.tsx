@@ -78,7 +78,7 @@ export function FilterTabs<T extends string>({
             role="tab"
             aria-selected={active}
             onClick={() => onChange(tab.id)}
-            className={`flex cursor-pointer items-center gap-2 whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+            className={`flex cursor-pointer items-center gap-2 whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-blue-400 ${
               active
                 ? "bg-adm-raised text-white shadow-sm"
                 : "text-adm-muted hover:text-white"

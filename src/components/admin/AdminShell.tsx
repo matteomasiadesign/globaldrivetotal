@@ -245,7 +245,7 @@ function Frame({ children }: { children: React.ReactNode }) {
           {groups.map((group, gi) => (
             <div key={gi}>
               {group.title && (
-                <p className="mb-1 px-3 text-[11px] font-semibold uppercase tracking-wide text-adm-muted/70">
+                <p className="mb-1 px-3 text-[11px] font-semibold uppercase tracking-wide text-adm-muted">
                   {group.title}
                 </p>
               )}
@@ -257,7 +257,7 @@ function Frame({ children }: { children: React.ReactNode }) {
                       key={href}
                       href={href}
                       aria-current={active ? "page" : undefined}
-                      className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+                      className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-blue-400 ${
                         active
                           ? "bg-blue-600/15 text-white"
                           : "text-adm-muted hover:bg-white/5 hover:text-white"
@@ -349,7 +349,7 @@ function Frame({ children }: { children: React.ReactNode }) {
               return (
                 <div key={gi} className="mb-4">
                   {group.title && (
-                    <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-adm-muted/70">{group.title}</p>
+                    <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-adm-muted">{group.title}</p>
                   )}
                   <div className="grid grid-cols-2 gap-2">
                     {items.map(({ href, label, icon: Icon, badge }) => {

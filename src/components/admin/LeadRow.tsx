@@ -145,7 +145,7 @@ export default function LeadRow({
           </span>
           <span className="mt-0.5 block truncate text-sm text-adm-muted">
             {lead.carLabel ?? lead.message ?? "Nessun dettaglio"}
-            <span className="text-slate-500"> · {timeAgo(lead.createdAt, now)}</span>
+            <span className="text-adm-muted"> · {timeAgo(lead.createdAt, now)}</span>
           </span>
         </button>
 

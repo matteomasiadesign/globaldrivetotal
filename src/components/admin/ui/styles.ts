@@ -14,10 +14,10 @@ export const btnDanger = `${btnBase} bg-rose-600 text-white hover:bg-rose-500`;
 export const btnIcon = `grid size-10 shrink-0 lg:size-8 cursor-pointer place-items-center rounded-lg text-adm-muted transition-colors hover:bg-white/10 hover:text-white disabled:pointer-events-none disabled:opacity-40 ${focusRing}`;
 
 export const inputCls =
-  "h-11 lg:h-9 w-full rounded-lg border border-adm-line bg-adm-bg px-3 text-sm text-white placeholder:text-slate-500 transition-colors focus:border-blue-500 focus:outline-none";
+  "h-11 lg:h-9 w-full rounded-lg border border-adm-line bg-adm-bg px-3 text-sm text-white placeholder:text-slate-400 transition-colors focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/25";
 
 export const textareaCls =
-  "w-full rounded-lg border border-adm-line bg-adm-bg px-3 py-2 text-sm text-white placeholder:text-slate-500 transition-colors focus:border-blue-500 focus:outline-none";
+  "w-full rounded-lg border border-adm-line bg-adm-bg px-3 py-2 text-sm text-white placeholder:text-slate-400 transition-colors focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/25";
 
 export const card = "rounded-xl border border-adm-line bg-adm-surface";
 
