@@ -19,6 +19,7 @@ import { Field, Section } from "../../ui/Field";
 import { SelectField } from "../../ui/Inputs";
 import { EmptyState } from "../../ui/Layout";
 import RowMenu from "../../ui/RowMenu";
+import StatoMenu from "../../ui/StatoMenu";
 import { btnIcon, btnPrimary, inputCls, rowDivider } from "../../ui/styles";
 import { useToast } from "../../ui/Toast";
 
@@ -164,12 +165,12 @@ export default function Preventivi() {
                 </span>
               </div>
               <span className="min-w-20 text-right font-semibold tabular-nums text-white">{euro(p.totale)}</span>
-              <SelectField
-                value={p.stato}
-                options={STATI_PREVENTIVO}
-                onChange={(stato) => updatePreventivo(p.id, { stato })}
-                aria-label={`Stato del preventivo per ${nomeCliente(p)}`}
-                className={`${inputCls} sm:w-36`}
+              <StatoMenu
+                valore={p.stato}
+                opzioni={STATI_PREVENTIVO}
+                toni={{ Bozza: "slate", Inviato: "blue", Accettato: "green", Rifiutato: "red", Scaduto: "amber" }}
+                onCambia={(stato) => updatePreventivo(p.id, { stato })}
+                label={`Stato del preventivo per ${nomeCliente(p)}`}
               />
               {p.stato !== "Accettato" && (
                 <button type="button" onClick={() => converti(p)} className={`${btnIcon} text-emerald-400`} title="Trasforma in prenotazione" aria-label="Trasforma in prenotazione">

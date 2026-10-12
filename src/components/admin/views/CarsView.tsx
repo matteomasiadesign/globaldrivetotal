@@ -22,18 +22,13 @@ import { StatoPill } from "../ui/Data";
 import { Switch } from "../ui/Field";
 import { EmptyState, FilterTabs, PageHeader, Panel, type TabOption } from "../ui/Layout";
 import RowMenu from "../ui/RowMenu";
+import StatoMenu from "../ui/StatoMenu";
 import { btnPrimary, btnSecondary, focusRing, inputCls, rowDivider } from "../ui/styles";
 import { useToast } from "../ui/Toast";
 
 export type CarFilter = "tutte" | "disponibili" | "trattativa" | "vendute" | "nascoste";
 
 const STATUSES: CarStatus[] = ["Disponibile", "In Trattativa", "Venduta"];
-
-const STATUS_TEXT: Record<CarStatus, string> = {
-  Disponibile: "text-emerald-300",
-  "In Trattativa": "text-amber-300",
-  Venduta: "text-slate-400",
-};
 
 const matches = (car: Car, filter: CarFilter) => {
   switch (filter) {
@@ -112,18 +107,13 @@ function CarRow({ car }: { car: Car }) {
         )}
       </div>
 
-      <select
-        value={car.status}
-        onChange={(e) => cambiaStatoCatalogo(car.id, e.target.value as CarStatus)}
-        aria-label={`Stato di ${name}`}
-        className={`${inputCls} ${STATUS_TEXT[car.status]} font-medium`}
-      >
-        {STATUSES.map((s) => (
-          <option key={s} value={s} className="text-white">
-            {s}
-          </option>
-        ))}
-      </select>
+      <StatoMenu
+        valore={car.status}
+        opzioni={STATUSES}
+        toni={{ Disponibile: "green", "In Trattativa": "amber", Venduta: "slate" }}
+        onCambia={(s) => cambiaStatoCatalogo(car.id, s)}
+        label={`Stato di ${name}`}
+      />
 
       <div className="flex items-center gap-2 md:justify-center">
         <span className="text-xs text-adm-muted md:hidden">Nel catalogo</span>

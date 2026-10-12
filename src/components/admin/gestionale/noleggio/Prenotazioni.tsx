@@ -19,6 +19,7 @@ import { Field, Section } from "../../ui/Field";
 import { SelectField } from "../../ui/Inputs";
 import { EmptyState, FilterTabs, type TabOption } from "../../ui/Layout";
 import RowMenu from "../../ui/RowMenu";
+import StatoMenu from "../../ui/StatoMenu";
 import { btnPrimary, focusRing, inputCls, rowDivider, textareaCls } from "../../ui/styles";
 import { useToast } from "../../ui/Toast";
 
@@ -242,17 +243,17 @@ export default function Prenotazioni() {
                 </span>
               </button>
               <span className="min-w-20 text-right font-medium tabular-nums text-white">{euro(importoPrenotazione(p))}</span>
-              <SelectField
-                value={p.stato}
-                options={STATI_PRENOTAZIONE}
-                onChange={(s) => {
+              <StatoMenu
+                valore={p.stato}
+                opzioni={STATI_PRENOTAZIONE}
+                toni={{ Prenotata: "blue", "In corso": "amber", Conclusa: "green", Annullata: "slate" }}
+                onCambia={(s) => {
                   const esito = updatePrenotazione(p.id, { stato: s });
                   if (!esito.ok) toast(esito.errore);
                   else if (s === "Conclusa") toast("Noleggio concluso: l'incasso è tra i movimenti da saldare");
                   else if (s === "In corso") toast("Noleggio iniziato: l'auto risulta noleggiata");
                 }}
-                aria-label={`Stato della prenotazione di ${nomeAuto(p.veicoloId)}`}
-                className={`${inputCls} sm:w-36`}
+                label={`Stato della prenotazione di ${nomeAuto(p.veicoloId)}`}
               />
               <RowMenu
                 label="Azioni prenotazione"

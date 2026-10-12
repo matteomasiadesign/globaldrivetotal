@@ -19,6 +19,7 @@ import { Field, Section } from "../../ui/Field";
 import { SelectField } from "../../ui/Inputs";
 import { EmptyState, Pill } from "../../ui/Layout";
 import RowMenu from "../../ui/RowMenu";
+import StatoMenu from "../../ui/StatoMenu";
 import { btnPrimary, btnSecondary, focusRing, inputCls, rowDivider, textareaCls } from "../../ui/styles";
 import { useToast } from "../../ui/Toast";
 
@@ -172,12 +173,12 @@ export default function Flotta() {
               </button>
               {scaduta(v) && <Pill tone="red">Scadenza superata</Pill>}
               <span className="text-sm tabular-nums text-slate-200">{euro(v.tariffaGiornaliera)}/giorno</span>
-              <SelectField
-                value={v.stato}
-                options={STATI_VEICOLO_RENT}
-                onChange={(stato) => updateRentVeicolo(v.id, { stato })}
-                aria-label={`Stato di ${nomeRentVeicolo(v)}`}
-                className={`${inputCls} sm:w-40`}
+              <StatoMenu
+                valore={v.stato}
+                opzioni={STATI_VEICOLO_RENT}
+                toni={{ Disponibile: "green", Noleggiata: "blue", "In manutenzione": "amber", "Fuori servizio": "red" }}
+                onCambia={(stato) => updateRentVeicolo(v.id, { stato })}
+                label={`Stato di ${nomeRentVeicolo(v)}`}
               />
               <RowMenu
                 label={`Azioni per ${nomeRentVeicolo(v)}`}
