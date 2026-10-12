@@ -140,7 +140,7 @@ function CarRow({ car }: { car: Car }) {
                 ? "In vetrina in home: clic per togliere"
                 : "Metti in vetrina in home"
           }
-          className={`grid size-8 cursor-pointer place-items-center rounded-lg transition-colors hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-30 ${focusRing}`}
+          className={`grid size-10 lg:size-8 cursor-pointer place-items-center rounded-lg transition-colors hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-30 ${focusRing}`}
         >
           <Star
             className={`size-4.5 ${
