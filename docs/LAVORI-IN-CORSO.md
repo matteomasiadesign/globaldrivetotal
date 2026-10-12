@@ -43,6 +43,16 @@ sulle modifiche non salvate, contratti salvati nel dossier e numerati per anno, 
 7. ~~Pubblica sul catalogo e campo Servizio~~ FATTO: link «Pubblica sul catalogo» nella scheda economica (CarDrawer con `daVeicoloId`), Servizio e Proprietario nella nuova auto, niente prezzo d'acquisto nel conto vendita.
 8. ~~README, controlli e build~~ FATTO.
 
+## Fase 6: interfaccia da CRM (ramo git `ui-crm`, in corso)
+
+Richiesta dell'utente: migliorare nettamente la UI, più comoda da guardare e usare. Ordine:
+
+1. Accessibilità e coerenza di base: contrasti (`styles.ts`, titoli sidebar), anello di focus su tab/link, valuta unica (`eur` in `lib/admin/constants.ts`).
+2. `ui/DataTable.tsx`: intestazioni, ordinamento per colonna, selezione multipla con azioni in blocco, righe di totale, schede su telefono. Da usare in Movimenti, Scadenzario, Banca, Contatti, Prenotazioni.
+3. Barra laterale più corta: «Conti» (Movimenti, Scadenzario, Banca), «Report» (IVA, Analisi), «Impostazioni» (Sito, Impostazioni, Storico) con schede in alto nella pagina (`ui/SectionTabs.tsx`).
+4. Etichette di stato cliccabili (`ui/StatoMenu.tsx`) al posto delle tendine nelle righe (noleggio, parco auto).
+5. `ui/Combobox.tsx` con ricerca e «crea nuovo» per scegliere clienti e auto nei moduli (movimento, prenotazione, appuntamento, contratto).
+
 ## Possibili passi successivi (non richiesti esplicitamente)
 
 - Sidebar più corta (raggruppare Scadenzario/Banca sotto Movimenti, IVA/Analisi sotto Report).
