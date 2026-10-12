@@ -27,6 +27,10 @@ npm run lint
 | **Lead dal sito** | **Reali** (vedi sotto): il server li scrive nella tabella `leads` di Supabase (serve `SUPABASE_SERVICE_ROLE_KEY`) |
 | Pagina "Richieste" in admin | **Reale**: legge e aggiorna la tabella `leads` (ogni minuto e con «Aggiorna»). Il collegamento richiesta → contatto resta nel browser finché l'anagrafica non migra |
 | Ruoli | `admin` vede tutto; `operatore` (da `staff_profiles.role`) non vede conti, IVA, analisi, impostazioni, storico, schede economiche e contratti (`src/lib/admin/access.ts`) |
+| Export | Pulsante «Esporta» (Excel .xlsx o CSV all'italiana) in Movimenti, Scadenzario, IVA, Banca, Analisi, Contatti, Parco auto, Noleggio. In IVA il **pacchetto per il commercialista** (un file per trimestre o anno). Codice in `src/lib/export/` |
+| Import | Pulsante «Importa» da Excel/CSV in Movimenti, Contatti, Parco auto, Flotta; in Banca l'**estratto conto** si abbina da solo ai movimenti. Colonne riconosciute dal nome, anteprima, doppioni, annulla. Codice in `src/lib/import/` e `src/components/admin/gestionale/import/` |
+| Backup | Impostazioni → Backup: scarica e ripristina tutto il gestionale in JSON (finché i conti restano nel browser) |
+| Ricerca | Ctrl+K (o «/») da qualunque pagina: clienti, auto, targhe, richieste, pagine e «Nuovo…» |
 
 | Casper | Risposte locali simulate; Gemini si attiva solo con `GEMINI_API_KEY` |
 

@@ -41,7 +41,15 @@ sulle modifiche non salvate, contratti salvati nel dossier e numerati per anno, 
 5. ~~Ricerca globale Ctrl+K e Nuovo~~ FATTO: `src/components/admin/CommandPalette.tsx` (Ctrl+K, "/", pulsante in sidebar e lente su telefono).
 6. ~~Scheda contatto completa~~ FATTO: in `ContattoDrawer.tsx` «Storia del cliente» con auto, movimenti, richieste, appuntamenti, noleggi e azioni (chiama, fissa appuntamento).
 7. ~~Pubblica sul catalogo e campo Servizio~~ FATTO: link «Pubblica sul catalogo» nella scheda economica (CarDrawer con `daVeicoloId`), Servizio e Proprietario nella nuova auto, niente prezzo d'acquisto nel conto vendita.
-8. README e memoria aggiornati; `npx tsc --noEmit -p .`, `npx eslint src`, `npx next build` (4 errori di lint erano già presenti prima: Casper e un `any`).
+8. ~~README, controlli e build~~ FATTO.
+
+## Possibili passi successivi (non richiesti esplicitamente)
+
+- Sidebar più corta (raggruppare Scadenzario/Banca sotto Movimenti, IVA/Analisi sotto Report).
+- Una tabella unica con ordinamento per colonna e selezione multipla (azioni in blocco).
+- Preventivi del noleggio modificabili e in PDF; documenti allegati ai contatti.
+- Conto vendita: movimento «da pagare al proprietario» alla vendita (da decidere col commercialista).
+- Portare il gestionale da localStorage a Supabase (tabelle già pronte in schema.sql).
 
 ## Cose che l'utente deve fare
 
