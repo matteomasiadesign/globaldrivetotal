@@ -1,8 +1,11 @@
 "use client";
 
 import React, { useMemo, useState } from "react";
+import { useAdmin } from "@/context/AdminContext";
 import { useCars } from "@/context/CarContext";
 import { useGestionale } from "@/context/GestionaleContext";
+import { statoDaCatalogo } from "@/lib/gestionale/calc";
+import { SERVIZI, type Servizio } from "@/lib/gestionale/types";
 import { deleteCarPhoto, uploadCarPhoto } from "@/lib/storage/carPhotos";
 import type {
   CarStatus,
@@ -37,6 +40,8 @@ interface CarForm {
   prezzoAcquisto: string;
   dataAcquisto: string;
   targa: string;
+  /** Vendita diretta, conto vendita o su commissione: cambia conti, IVA e contratto. */
+  servizio: Servizio;
   featured: boolean;
 }
 
@@ -61,27 +66,33 @@ const STORAGE_BUDGET_CHARS = 4_500_000;
 
 export default function CarDrawer({
   carId,
+  daVeicoloId,
   onClose,
 }: {
   /** Se assente si crea una nuova auto. */
   carId?: string;
+  /** Nuova auto del catalogo per una scheda economica che esiste già (auto nata fuori catalogo). */
+  daVeicoloId?: string;
   onClose: () => void;
 }) {
   const { cars, addCar, updateCar } = useCars();
+  const { reassignDocuments } = useAdmin();
   const { veicoli, contatti, updateVeicolo, schedaDellAuto, cambiaStatoCatalogo, impostaVisibilita } =
     useGestionale();
   const toast = useToast();
   const car = cars.find((c) => c.id === carId);
+  // La scheda da pubblicare: i dati d'acquisto ci sono già, si chiedono solo quelli per il sito.
+  const scheda = car ? undefined : veicoli.find((v) => v.id === daVeicoloId);
 
   const [form, setForm] = useState<CarForm>(() => ({
-    brand: car?.brand ?? "",
-    model: car?.model ?? "",
-    version: car?.version ?? "",
+    brand: car?.brand ?? scheda?.marca ?? "",
+    model: car?.model ?? scheda?.modello ?? "",
+    version: car?.version ?? scheda?.versione ?? "",
     price: car ? String(car.price) : "",
     year: car ? String(car.year) : String(new Date().getFullYear()),
-    mileage: car ? String(car.mileage) : "",
+    mileage: car ? String(car.mileage) : scheda?.chilometraggio ? String(scheda.chilometraggio) : "",
     power: car ? String(car.power) : "",
-    fuel: car?.fuel ?? "Benzina",
+    fuel: car?.fuel ?? (FUELS.find((x) => x === scheda?.alimentazione) || "Benzina"),
     transmission: car?.transmission ?? "Automatico",
     category: car?.category ?? "Sportiva",
     location: car?.location ?? cars[0]?.location ?? "",
@@ -93,6 +104,7 @@ export default function CarDrawer({
     prezzoAcquisto: "",
     dataAcquisto: "",
     targa: "",
+    servizio: "Vendita diretta",
     featured: car?.featured ?? false,
   }));
   const [photos, setPhotos] = useState<PhotoItem[]>(() =>
@@ -173,10 +185,26 @@ export default function CarDrawer({
         if (data.hidden !== Boolean(car.hidden)) impostaVisibilita(car.id, data.hidden);
       }
       toast(`${data.brand} ${data.model} aggiornata`);
+    } else if (scheda) {
+      // Pubblicazione di una scheda esistente: niente scheda nuova, si collega quella (con i suoi documenti).
+      const nuova = addCar(data);
+      updateVeicolo(scheda.id, {
+        carId: nuova.id,
+        stato: data.hidden ? "In preparazione" : statoDaCatalogo(data.status),
+        marca: data.brand,
+        modello: data.model,
+        versione: data.version,
+        chilometraggio: data.mileage,
+      });
+      reassignDocuments(scheda.id, nuova.id);
+      toast(`${data.brand} ${data.model} pubblicata nel catalogo`);
     } else {
+      const contoVendita = form.servizio === "Conto vendita";
       schedaDellAuto(addCar(data), {
+        servizio: form.servizio,
         fornitoreId: form.fornitoreId || null,
-        prezzoAcquisto: Number(form.prezzoAcquisto) || 0,
+        // Nel conto vendita l'auto resta del proprietario: non c'è un prezzo d'acquisto.
+        prezzoAcquisto: contoVendita ? 0 : Number(form.prezzoAcquisto) || 0,
         dataAcquisto: form.dataAcquisto,
         targa: form.targa.trim().toUpperCase(),
       });
@@ -187,9 +215,9 @@ export default function CarDrawer({
 
   return (
     <Drawer
-      title={car ? `${car.brand} ${car.model}` : "Nuova auto"}
+      title={car ? `${car.brand} ${car.model}` : scheda ? "Pubblica sul catalogo" : "Nuova auto"}
       subtitle={car ? "Modifica scheda" : "Compila la scheda: apparirà nel catalogo se è visibile"}
-      submitLabel={car ? "Salva modifiche" : "Aggiungi auto"}
+      submitLabel={car ? "Salva modifiche" : scheda ? "Pubblica" : "Aggiungi auto"}
       submitDisabled={saving || overBudget}
       busy={saving}
       onSubmit={submit}
@@ -227,13 +255,33 @@ export default function CarDrawer({
         </Field>
       </Section>
 
-      {!car && (
+      {scheda && (
+        <p className="rounded-lg border border-adm-line bg-adm-bg px-3.5 py-3 text-sm text-slate-300">
+          Pubblichi la scheda già esistente: acquisto, costi, documenti e servizio restano quelli della scheda. Qui servono
+          solo foto, prezzo e dati per il sito.
+        </p>
+      )}
+
+      {!car && !scheda && (
         <Section title="Acquisto" columns={2}>
-          <Field label="Acquistata da" className="sm:col-span-2" hint="Il fornitore si sceglie dall'anagrafica (Contatti).">
+          <Field label="Servizio" className="sm:col-span-2" hint="Cambia i conti: nel conto vendita incassi solo la commissione.">
+            <select value={form.servizio} onChange={(e) => set("servizio", e.target.value as Servizio)} className={inputCls}>
+              {SERVIZI.map((s) => (
+                <option key={s} value={s}>
+                  {s}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <Field
+            label={form.servizio === "Conto vendita" ? "Proprietario" : "Acquistata da"}
+            className="sm:col-span-2"
+            hint="Si sceglie dall'anagrafica (Contatti). Se manca, aggiungilo dalla ricerca (Ctrl+K → Nuovo contatto)."
+          >
             <select value={form.fornitoreId} onChange={(e) => set("fornitoreId", e.target.value)} className={inputCls}>
               <option value="">— non indicato —</option>
               {contatti
-                .filter((c) => c.tipo !== "Cliente")
+                .filter((c) => c.tipo !== "Cliente" || form.servizio === "Conto vendita")
                 .map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.nome}
@@ -241,9 +289,11 @@ export default function CarDrawer({
                 ))}
             </select>
           </Field>
-          <Field label="Prezzo di acquisto (€)" hint="Crea da solo il movimento d'acquisto.">
-            <input type="number" min={0} value={form.prezzoAcquisto} onChange={(e) => set("prezzoAcquisto", e.target.value)} className={inputCls} />
-          </Field>
+          {form.servizio !== "Conto vendita" && (
+            <Field label="Prezzo di acquisto (€)" hint="Crea da solo il movimento d'acquisto.">
+              <input type="number" min={0} value={form.prezzoAcquisto} onChange={(e) => set("prezzoAcquisto", e.target.value)} className={inputCls} />
+            </Field>
+          )}
           <Field label="Data di acquisto">
             <input type="date" value={form.dataAcquisto} onChange={(e) => set("dataAcquisto", e.target.value)} className={inputCls} />
           </Field>

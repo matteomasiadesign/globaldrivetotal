@@ -164,7 +164,12 @@ export default function VeicoloView({ veicoloId }: { veicoloId: string }) {
             {car.hidden ? " · nascosta" : ""}
           </span>
         ) : (
-          <span className="text-xs text-adm-muted">Non è nel catalogo del sito</span>
+          <span className="flex items-center gap-2 text-xs text-adm-muted">
+            Non è nel catalogo del sito
+            <button type="button" onClick={() => openCar(undefined, { daVeicoloId: v.id })} className="cursor-pointer text-blue-400 hover:text-blue-300">
+              Pubblica sul catalogo
+            </button>
+          </span>
         )}
       </div>
 
@@ -187,7 +192,7 @@ export default function VeicoloView({ veicoloId }: { veicoloId: string }) {
               <Field label="Data vendita">
                 <TextField type="date" value={v.dataVendita} onCommit={(dataVendita) => patch({ dataVendita })} />
               </Field>
-              <Field label="Acquistata da">
+              <Field label={v.servizio === "Conto vendita" ? "Proprietario" : "Acquistata da"}>
                 <SelectField
                   value={v.fornitoreId ?? ""}
                   blank="— non indicato —"
@@ -353,9 +358,12 @@ export default function VeicoloView({ veicoloId }: { veicoloId: string }) {
 
           <Panel title="Prezzi">
             <div className="grid gap-3 p-4">
-              <Field label="Prezzo di acquisto (€)">
-                <NumberField value={v.prezzoAcquisto} onCommit={(n) => patch({ prezzoAcquisto: n ?? 0 })} />
-              </Field>
+              {/* Nel conto vendita l'auto resta del proprietario: non c'è un acquisto da registrare. */}
+              {v.servizio !== "Conto vendita" && (
+                <Field label="Prezzo di acquisto (€)">
+                  <NumberField value={v.prezzoAcquisto} onCommit={(n) => patch({ prezzoAcquisto: n ?? 0 })} />
+                </Field>
+              )}
               <Field
                 label={calc.isContoVendita ? "Prezzo di vendita per il proprietario (€)" : "Prezzo di vendita (€)"}
                 hint={car ? `Sul sito l'auto è a ${euro(car.price)}: qui va il prezzo realmente incassato.` : undefined}

@@ -40,7 +40,7 @@ sulle modifiche non salvate, contratti salvati nel dossier e numerati per anno, 
 4. ~~Oggi: ritiri e riconsegne del noleggio, richieste ferme~~ FATTO (gli incassi scaduti erano già negli avvisi).
 5. ~~Ricerca globale Ctrl+K e Nuovo~~ FATTO: `src/components/admin/CommandPalette.tsx` (Ctrl+K, "/", pulsante in sidebar e lente su telefono).
 6. ~~Scheda contatto completa~~ FATTO: in `ContattoDrawer.tsx` «Storia del cliente» con auto, movimenti, richieste, appuntamenti, noleggi e azioni (chiama, fissa appuntamento).
-7. **Pubblica sul catalogo** una scheda fuori catalogo (`VeicoloView.tsx` + `CarDrawer.tsx` collegato alla scheda esistente); campo Servizio in `CarDrawer`.
+7. ~~Pubblica sul catalogo e campo Servizio~~ FATTO: link «Pubblica sul catalogo» nella scheda economica (CarDrawer con `daVeicoloId`), Servizio e Proprietario nella nuova auto, niente prezzo d'acquisto nel conto vendita.
 8. README e memoria aggiornati; `npx tsc --noEmit -p .`, `npx eslint src`, `npx next build` (4 errori di lint erano già presenti prima: Casper e un `any`).
 
 ## Cose che l'utente deve fare

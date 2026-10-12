@@ -13,7 +13,8 @@ import SaleContractDrawer from "./gestionale/SaleContractDrawer";
 
 interface EditorsApi {
   openAppointment: (options?: AppointmentEditorOptions) => void;
-  openCar: (carId?: string) => void;
+  /** `daVeicoloId`: pubblica nel catalogo una scheda economica che esiste già. */
+  openCar: (carId?: string, options?: { daVeicoloId?: string }) => void;
   openMovimento: (options?: MovimentoEditorOptions) => void;
   openContatto: (options?: ContattoEditorOptions) => void;
   /** Contratto di vendita per la scheda economica indicata. */
@@ -24,7 +25,7 @@ const EditorsContext = createContext<EditorsApi | undefined>(undefined);
 
 type OpenEditor =
   | { kind: "appointment"; key: number; options: AppointmentEditorOptions }
-  | { kind: "car"; key: number; carId?: string }
+  | { kind: "car"; key: number; carId?: string; daVeicoloId?: string }
   | { kind: "movimento"; key: number; options: MovimentoEditorOptions }
   | { kind: "contatto"; key: number; options: ContattoEditorOptions }
   | { kind: "contratto"; key: number; veicoloId: string }
@@ -36,8 +37,8 @@ export function EditorsProvider({ children }: { children: React.ReactNode }) {
   const openAppointment = useCallback((options: AppointmentEditorOptions = {}) => {
     setEditor({ kind: "appointment", key: Date.now(), options });
   }, []);
-  const openCar = useCallback((carId?: string) => {
-    setEditor({ kind: "car", key: Date.now(), carId });
+  const openCar = useCallback((carId?: string, options: { daVeicoloId?: string } = {}) => {
+    setEditor({ kind: "car", key: Date.now(), carId, daVeicoloId: options.daVeicoloId });
   }, []);
   const openMovimento = useCallback((options: MovimentoEditorOptions = {}) => {
     setEditor({ kind: "movimento", key: Date.now(), options });
@@ -63,7 +64,7 @@ export function EditorsProvider({ children }: { children: React.ReactNode }) {
         <AppointmentDrawer key={editor.key} {...editor.options} onClose={close} />
       )}
       {editor?.kind === "car" && (
-        <CarDrawer key={editor.key} carId={editor.carId} onClose={close} />
+        <CarDrawer key={editor.key} carId={editor.carId} daVeicoloId={editor.daVeicoloId} onClose={close} />
       )}
       {editor?.kind === "movimento" && (
         <MovimentoDrawer key={editor.key} {...editor.options} onClose={close} />
