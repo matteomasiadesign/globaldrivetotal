@@ -14,6 +14,7 @@ import {
   tariffaPerPeriodo,
   type StatoPrenotazione,
 } from "@/lib/gestionale/rent";
+import Combobox from "../../ui/Combobox";
 import Drawer from "../../ui/Drawer";
 import { Field, Section } from "../../ui/Field";
 import { SelectField } from "../../ui/Inputs";
@@ -24,7 +25,7 @@ import { btnPrimary, focusRing, inputCls, rowDivider, textareaCls } from "../../
 import { useToast } from "../../ui/Toast";
 
 function PrenotazioneDrawer({ prenotazioneId, onClose }: { prenotazioneId?: string; onClose: () => void }) {
-  const { noleggio, contatti, addPrenotazione, updatePrenotazione } = useGestionale();
+  const { noleggio, contatti, addPrenotazione, updatePrenotazione, addContatto } = useGestionale();
   const toast = useToast();
   const esistente = noleggio.prenotazioni.find((p) => p.id === prenotazioneId);
   const [f, setF] = useState({
@@ -114,11 +115,17 @@ function PrenotazioneDrawer({ prenotazioneId, onClose }: { prenotazioneId?: stri
           />
         </Field>
         <Field label="Cliente" className="sm:col-span-2" hint="Patente e documento si inseriscono nella scheda del contatto.">
-          <SelectField
+          <Combobox
             value={f.contattoId}
-            blank="— non ancora in anagrafica —"
-            options={contatti.filter((c) => c.tipo !== "Fornitore" || c.id === f.contattoId).map((c) => ({ value: c.id, label: c.nome }))}
+            vuoto="— non ancora in anagrafica —"
+            placeholder="Cerca per nome o telefono…"
+            ariaLabel="Cliente"
+            opzioni={contatti
+              .filter((c) => c.tipo !== "Fornitore" || c.id === f.contattoId)
+              .map((c) => ({ value: c.id, label: c.nome || "Senza nome", dettaglio: c.telefono }))}
             onChange={(v) => set("contattoId", v)}
+            creaLabel="Nuovo cliente"
+            onCrea={(nome) => addContatto({ nome, tipo: "Cliente" }).id}
           />
         </Field>
         {!f.contattoId && (

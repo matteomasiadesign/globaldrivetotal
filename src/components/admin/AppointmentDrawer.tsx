@@ -6,6 +6,8 @@ import { useAdmin, type NewAppointment } from "@/context/AdminContext";
 import { APPOINTMENT_STATUSES, APPOINTMENT_TYPES, eur, isOpenAppointment } from "@/lib/admin/constants";
 import { formatLongDate, fromDateStr } from "@/lib/admin/dates";
 import type { Appointment, AppointmentStatus, AppointmentType } from "@/types/admin";
+import { useGestionale } from "@/context/GestionaleContext";
+import Combobox from "./ui/Combobox";
 import Drawer from "./ui/Drawer";
 import { Field, Section } from "./ui/Field";
 import { inputCls, textareaCls } from "./ui/styles";
@@ -31,6 +33,7 @@ export default function AppointmentDrawer({
   const { cars } = useCars();
   const { today, leads, addAppointment, updateAppointment, updateLead } = useAdmin();
   const toast = useToast();
+  const { contatti } = useGestionale();
 
   const initial = appointment ?? prefill;
   const isEdit = Boolean(appointment);
@@ -101,6 +104,23 @@ export default function AppointmentDrawer({
       onClose={onClose}
     >
       <Section title="Cliente" columns={2}>
+        {contatti.length > 0 && (
+          <Field label="Dall'anagrafica" className="sm:col-span-2" hint="Sceglilo per compilare nome, telefono ed email.">
+            <Combobox
+              value=""
+              placeholder="Cerca un cliente per nome o telefono…"
+              ariaLabel="Cliente dall'anagrafica"
+              opzioni={contatti.map((c) => ({ value: c.id, label: c.nome || "Senza nome", dettaglio: c.telefono }))}
+              onChange={(id) => {
+                const c = contatti.find((x) => x.id === id);
+                if (!c) return;
+                setClientName(c.nome);
+                setClientPhone(c.telefono);
+                setClientEmail(c.email);
+              }}
+            />
+          </Field>
+        )}
         <Field label="Nome e cognome" className="sm:col-span-2">
           <input
             required
@@ -202,18 +222,14 @@ export default function AppointmentDrawer({
           />
         </Field>
         <Field label="Vettura" className="sm:col-span-2">
-          <select
+          <Combobox
             value={carId}
-            onChange={(e) => pickCar(e.target.value)}
-            className={inputCls}
-          >
-            <option value="">Nessuna (consulenza generale)</option>
-            {cars.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.brand} {c.model} · {eur(c.price)}
-              </option>
-            ))}
-          </select>
+            vuoto="Nessuna (consulenza generale)"
+            placeholder="Cerca marca o modello…"
+            ariaLabel="Vettura"
+            opzioni={cars.map((c) => ({ value: c.id, label: `${c.brand} ${c.model}`, dettaglio: `${c.version} · ${eur(c.price)}` }))}
+            onChange={pickCar}
+          />
         </Field>
         <Field label="Note interne" className="sm:col-span-2">
           <textarea

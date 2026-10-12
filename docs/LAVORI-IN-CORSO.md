@@ -51,7 +51,9 @@ Richiesta dell'utente: migliorare nettamente la UI, più comoda da guardare e us
 2. ~~DataTable~~ FATTO (`ui/DataTable.tsx`) e usata in Movimenti, Scadenzario, Banca, Contatti.
 3. ~~Barra laterale più corta~~ FATTO: 10 voci; schede di sezione in `AdminShell.tsx` (SEZIONI, SchedeSezione).
 4. ~~Etichette di stato cliccabili~~ FATTO (`ui/StatoMenu.tsx`).
-5. `ui/Combobox.tsx` con ricerca e «crea nuovo» per scegliere clienti e auto nei moduli (movimento, prenotazione, appuntamento, contratto).
+5. ~~Combobox~~ FATTO (`ui/Combobox.tsx`) in movimento, prenotazione, appuntamento, contratto; colonna dei mesi fissa in Analisi.
+
+Fase 6 completata.
 
 ## Possibili passi successivi (non richiesti esplicitamente)
 

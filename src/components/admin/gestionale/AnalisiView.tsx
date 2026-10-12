@@ -82,7 +82,7 @@ function Costi({ anno }: { anno: number }) {
         <table className="w-full min-w-[56rem]">
           <thead className="border-b border-adm-line">
             <tr>
-              <th className={thCls}>Mese</th>
+              <th className={`${thCls} sticky left-0 z-10 bg-adm-surface`}>Mese</th>
               <th className={`${thCls} text-right`}>Fissi</th>
               <th className={`${thCls} text-right`}>Variabili diretti</th>
               <th className={`${thCls} text-right`}>Variabili generali</th>
@@ -96,7 +96,7 @@ function Costi({ anno }: { anno: number }) {
           <tbody className="divide-y divide-adm-line">
             {righe.map((r) => (
               <tr key={r.nome}>
-                <td className={`${tdCls} font-medium text-white`}>{r.nome}</td>
+                <td className={`${tdCls} sticky left-0 bg-adm-surface font-medium text-white`}>{r.nome}</td>
                 <td className={`${tdCls} text-right tabular-nums`}>{euro(r.fissi)}</td>
                 <td className={`${tdCls} text-right tabular-nums`}>{euro(r.diretti)}</td>
                 <td className={`${tdCls} text-right tabular-nums`}>{euro(r.generali)}</td>
@@ -110,7 +110,7 @@ function Costi({ anno }: { anno: number }) {
           </tbody>
           <tfoot className="border-t border-adm-line bg-white/[0.03]">
             <tr>
-              <td className={tfCls}>Totale anno</td>
+              <td className={`${tfCls} sticky left-0 bg-adm-raised`}>Totale anno</td>
               <td className={`${tfCls} text-right`}>{euro(tot("fissi"))}</td>
               <td className={`${tfCls} text-right`}>{euro(tot("diretti"))}</td>
               <td className={`${tfCls} text-right`}>{euro(tot("generali"))}</td>
@@ -170,7 +170,7 @@ function Mensile({ anno }: { anno: number }) {
         <table className="w-full min-w-[44rem]">
           <thead className="border-b border-adm-line">
             <tr>
-              <th className={thCls}>Mese</th>
+              <th className={`${thCls} sticky left-0 z-10 bg-adm-surface`}>Mese</th>
               <th className={`${thCls} text-right`}>Vendita diretta</th>
               <th className={`${thCls} text-right`}>Su commissione</th>
               <th className={`${thCls} text-right`}>Conto vendita</th>
@@ -183,7 +183,7 @@ function Mensile({ anno }: { anno: number }) {
           <tbody className="divide-y divide-adm-line">
             {righe.map((r) => (
               <tr key={r.nome}>
-                <td className={`${tdCls} font-medium text-white`}>{r.nome}</td>
+                <td className={`${tdCls} sticky left-0 bg-adm-surface font-medium text-white`}>{r.nome}</td>
                 <td className={`${tdCls} text-right tabular-nums`}>{r.diretta}</td>
                 <td className={`${tdCls} text-right tabular-nums`}>{r.commissione}</td>
                 <td className={`${tdCls} text-right tabular-nums`}>{r.contoVendita}</td>
@@ -196,7 +196,7 @@ function Mensile({ anno }: { anno: number }) {
           </tbody>
           <tfoot className="border-t border-adm-line bg-white/[0.03]">
             <tr>
-              <td className={tfCls}>Totale anno</td>
+              <td className={`${tfCls} sticky left-0 bg-adm-raised`}>Totale anno</td>
               <td className={`${tfCls} text-right`}>{quante("diretta")}</td>
               <td className={`${tfCls} text-right`}>{quante("commissione")}</td>
               <td className={`${tfCls} text-right`}>{quante("contoVendita")}</td>

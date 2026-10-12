@@ -21,6 +21,7 @@ import {
   type StatoPagamento,
   type TipoMovimento,
 } from "@/lib/gestionale/types";
+import Combobox from "../ui/Combobox";
 import Drawer from "../ui/Drawer";
 import { Field, Section, ToggleRow } from "../ui/Field";
 import { SelectField } from "../ui/Inputs";
@@ -44,7 +45,7 @@ export default function MovimentoDrawer({
   onClose,
 }: MovimentoEditorOptions & { onClose: () => void }) {
   const { today } = useAdmin();
-  const { movimenti, veicoli, contatti, impostazioni, addMovimento, updateMovimento } = useGestionale();
+  const { movimenti, veicoli, contatti, impostazioni, addMovimento, updateMovimento, addContatto } = useGestionale();
   const toast = useToast();
   const esistente = movimenti.find((m) => m.id === movimentoId);
   // Da copiare: tutti i campi tranne data, documento, saldo e riconciliazione.
@@ -177,10 +178,12 @@ export default function MovimentoDrawer({
           <input required type="date" value={f.data} onChange={(e) => set("data", e.target.value)} className={inputCls} />
         </Field>
         <Field label="Auto" className="sm:col-span-2" hint="Lascia vuoto per un costo generale dell'attività.">
-          <SelectField
+          <Combobox
             value={f.autoId}
-            blank="— generale —"
-            options={veicoli.map((v) => ({ value: v.id, label: nomeVeicolo(v) }))}
+            vuoto="— generale —"
+            placeholder="Cerca per marca, modello o targa…"
+            ariaLabel="Auto"
+            opzioni={veicoli.map((v) => ({ value: v.id, label: nomeVeicolo(v), dettaglio: v.stato }))}
             onChange={scegliAuto}
           />
         </Field>
@@ -194,13 +197,17 @@ export default function MovimentoDrawer({
           />
         </Field>
         <Field label={f.tipo === "Entrata" ? "Cliente" : "Fornitore"} className="sm:col-span-2" hint="Scegli dall'anagrafica per collegare il movimento al contatto.">
-          <SelectField
+          <Combobox
             value={f.contattoId}
-            blank="— non in anagrafica —"
-            options={contatti
+            vuoto="— non in anagrafica —"
+            placeholder="Cerca per nome o telefono…"
+            ariaLabel={f.tipo === "Entrata" ? "Cliente" : "Fornitore"}
+            opzioni={contatti
               .filter((c) => (f.tipo === "Entrata" ? c.tipo !== "Fornitore" : c.tipo !== "Cliente") || c.id === f.contattoId)
-              .map((c) => ({ value: c.id, label: c.nome }))}
+              .map((c) => ({ value: c.id, label: c.nome || "Senza nome", dettaglio: c.telefono }))}
             onChange={(v) => set("contattoId", v)}
+            creaLabel={f.tipo === "Entrata" ? "Nuovo cliente" : "Nuovo fornitore"}
+            onCrea={(nome) => addContatto({ nome, tipo: f.tipo === "Entrata" ? "Cliente" : "Fornitore" }).id}
           />
         </Field>
         {!f.contattoId && (

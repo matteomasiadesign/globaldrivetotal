@@ -8,6 +8,7 @@ import { useSite } from "@/context/SiteContext";
 import { euro, nomeVeicolo } from "@/lib/gestionale/calc";
 import { generaContrattoVenditaPDF } from "@/lib/gestionale/contractPdf";
 import { formatBytes, saveVehicleFile } from "@/lib/storage/vehicleFiles";
+import Combobox from "../ui/Combobox";
 import Drawer from "../ui/Drawer";
 import { Field, Section, ToggleRow } from "../ui/Field";
 import { SelectField } from "../ui/Inputs";
@@ -221,11 +222,13 @@ export default function SaleContractDrawer({
       <Section title="Acquirente" columns={2}>
         {clienti.length > 0 && (
           <Field label="Dall'anagrafica" className="sm:col-span-2">
-            <SelectField
-              value=""
-              blank="— scegli un cliente o compila sotto —"
-              options={clienti.map((c) => ({ value: c.id, label: c.nome }))}
-              onChange={precompila}
+            <Combobox
+              value={f.contattoId}
+              vuoto="— nessuno: compila sotto —"
+              placeholder="Cerca per nome, telefono o codice fiscale…"
+              ariaLabel="Cliente dall'anagrafica"
+              opzioni={clienti.map((c) => ({ value: c.id, label: c.nome || "Senza nome", dettaglio: c.telefono || c.codiceFiscale }))}
+              onChange={(id) => (id ? precompila(id) : set("contattoId", ""))}
             />
           </Field>
         )}
