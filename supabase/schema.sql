@@ -551,6 +551,7 @@ create table public.impostazioni (
   margine_con_spese           boolean not null default true,
   pagamenti_banca             text[] not null default array['CONTO', 'Bonifico', 'Carta']
                                 check (pagamenti_banca <@ array['CONTO', 'CASH', 'Carta', 'Bonifico', 'Altro']),
+  noleggio_iva_inclusa        boolean not null default true,   -- le tariffe del noleggio comprendono l'IVA
   updated_at                  timestamptz not null default now()
 );
 insert into public.impostazioni (id) values (1);
@@ -567,7 +568,7 @@ select nome, ord from unnest(array[
   'Acquisto veicolo', 'Pratiche / Minivoltura', 'Trasporto', 'Meccanica / Tagliando', 'Carrozzeria',
   'Pneumatici / Assetto', 'Lavaggio / Detailing', 'Garanzia', 'Pubblicità', 'Ricambi', 'Commercialista',
   'Assicurazioni', 'Software / Canoni', 'Personale', 'Banca / Commissioni', 'Utenze / Telefonia',
-  'Costi generali', 'Altro', 'Vendita veicolo', 'Intermediazione conto vendita'
+  'Costi generali', 'Altro', 'Vendita veicolo', 'Intermediazione conto vendita', 'Noleggio', 'Altre entrate'
 ]) with ordinality as t(nome, ord);
 
 -- Scheda economica di un'auto. Se car_id è valorizzato è un'auto del catalogo
@@ -635,6 +636,8 @@ create table public.movimenti (
   numero_documento      text not null default '',
   riconciliato          boolean not null default false,
   riferimento_estratto  text not null default '',
+  allegato_path         text not null default '',   -- fattura o ricevuta nel bucket vehicle-documents
+  allegato_nome         text not null default '',
   created_at            timestamptz not null default now(),
   updated_at            timestamptz not null default now()
 );
@@ -1083,21 +1086,36 @@ with vendite as (
      and not (i.margine_con_spese and m.auto_id is not null and m.natura_costo = 'Variabile diretto auto'
               and m.categoria <> 'Acquisto veicolo' and coalesce(v.servizio, '') <> 'Conto vendita')
    group by 1, 2
+), altre as (
+  -- IVA a debito delle entrate che non sono vendite di auto (noleggi, servizi…).
+  select extract(year from m.data)::int as anno,
+         extract(quarter from m.data)::int as trimestre,
+         sum(m.iva) as iva_altre_entrate
+    from public.movimenti m
+   where m.tipo = 'Entrata' and m.categoria not in ('Vendita veicolo', 'Intermediazione conto vendita')
+   group by 1, 2
+), periodi as (
+  select anno, trimestre from vendite
+  union select anno, trimestre from acquisti
+  union select anno, trimestre from altre
 ), unite as (
-  select coalesce(v.anno, a.anno) as anno,
-         coalesce(v.trimestre, a.trimestre) as trimestre,
+  select p.anno, p.trimestre,
          coalesce(v.iva_margine, 0) as iva_margine,
          coalesce(v.iva_commissioni, 0) as iva_commissioni,
+         coalesce(o.iva_altre_entrate, 0) as iva_altre_entrate,
          coalesce(a.iva_detraibile, 0) as iva_detraibile
-    from vendite v
-    full join acquisti a on a.anno = v.anno and a.trimestre = v.trimestre
+    from periodi p
+    left join vendite v on v.anno = p.anno and v.trimestre = p.trimestre
+    left join acquisti a on a.anno = p.anno and a.trimestre = p.trimestre
+    left join altre o on o.anno = p.anno and o.trimestre = p.trimestre
 ), saldi as (
-  select u.*, greatest(0, u.iva_margine + u.iva_commissioni - u.iva_detraibile) as saldo_base
+  select u.*, greatest(0, u.iva_margine + u.iva_commissioni + u.iva_altre_entrate - u.iva_detraibile) as saldo_base
     from unite u
 )
 select s.anno, s.trimestre, s.iva_margine, s.iva_commissioni, s.iva_detraibile, s.saldo_base,
        s.saldo_base * i.maggiorazione_trimestrale as maggiorazione,
-       s.saldo_base * (1 + i.maggiorazione_trimestrale) as totale_da_versare
+       s.saldo_base * (1 + i.maggiorazione_trimestrale) as totale_da_versare,
+       s.iva_altre_entrate
   from saldi s
  cross join public.impostazioni i
  where i.id = 1;
@@ -1151,6 +1169,7 @@ create table public.noleggio_prenotazioni (
   carburante_riconsegna  text not null default '',
   extra                  text not null default '',
   note                   text not null default '',
+  movimento_id           uuid references public.movimenti(id) on delete set null,   -- incasso registrato alla conclusione
   created_at             timestamptz not null default now(),
   updated_at             timestamptz not null default now(),
   check (data_fine >= data_inizio),
