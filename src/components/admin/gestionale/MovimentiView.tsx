@@ -2,13 +2,13 @@
 
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
-import { CarFront, Check, Copy, Paperclip, Pencil, Plus, Receipt, Search, Trash2, Upload, UserRound } from "lucide-react";
+import { CarFront, Check, Copy, Download, Paperclip, Pencil, Plus, Receipt, Search, Trash2, Upload, UserRound } from "lucide-react";
 import { ImportaMovimenti } from "./import/Importa";
 import { useAdmin } from "@/context/AdminContext";
 import { useGestionale } from "@/context/GestionaleContext";
 import { formatDate } from "@/lib/admin/dates";
 import { foglioMovimenti, foglioPrimaNota } from "@/lib/export/gestionale";
-import { nomeFile } from "@/lib/export/scrivi";
+import { nomeFile, scaricaXlsx } from "@/lib/export/scrivi";
 import { euro, nomeVeicolo } from "@/lib/gestionale/calc";
 import { anniDisponibili, etichettaPeriodo, inPeriodo, type Periodo } from "@/lib/gestionale/periodo";
 import type { Movimento } from "@/lib/gestionale/types";
@@ -19,8 +19,8 @@ import ExportMenu, { useContestoExport } from "../ui/ExportMenu";
 import { SelectField } from "../ui/Inputs";
 import { EmptyState, FilterTabs, PageHeader, Pill, type TabOption } from "../ui/Layout";
 import { PeriodoSelect } from "../ui/PeriodoSelect";
-import RowMenu from "../ui/RowMenu";
-import { btnPrimary, btnSecondary, inputCls, rowDivider } from "../ui/styles";
+import DataTable from "../ui/DataTable";
+import { btnPrimary, btnSecondary, inputCls } from "../ui/styles";
 import { useToast } from "../ui/Toast";
 
 type TipoFiltro = "tutti" | "Entrata" | "Uscita";
@@ -68,6 +68,16 @@ export default function MovimentiView({ initialAuto }: { initialAuto?: string })
     { id: "Entrata", label: "Entrate", count: nelPeriodo.filter((m) => m.tipo === "Entrata").length },
     { id: "Uscita", label: "Uscite", count: nelPeriodo.filter((m) => m.tipo === "Uscita").length },
   ];
+
+  // Saldare uno o più movimenti in un colpo, con «Annulla».
+  function salda(lista: Movimento[]) {
+    if (lista.length === 0) return;
+    lista.forEach((m) => updateMovimento(m.id, { statoPagamento: "Saldato", dataSaldo: today }));
+    toast(lista.length === 1 ? (lista[0].tipo === "Entrata" ? "Incasso registrato" : "Pagamento registrato") : `${lista.length} movimenti saldati`, {
+      label: "Annulla",
+      onClick: () => lista.forEach((m) => updateMovimento(m.id, { statoPagamento: "Da saldare", dataSaldo: m.dataSaldo })),
+    });
+  }
 
   function stato(m: Movimento) {
     if (m.statoPagamento !== "Da saldare") return null;
@@ -140,76 +150,139 @@ export default function MovimentiView({ initialAuto }: { initialAuto?: string })
         </div>
       </div>
 
-      {visibili.length === 0 ? (
-        <EmptyState
-          icon={Receipt}
-          title={movimenti.length === 0 ? "Nessun movimento registrato" : "Nessun movimento trovato"}
-          description={movimenti.length === 0 ? "Registra la prima entrata o uscita." : "Prova a cambiare filtri o ricerca."}
-        />
-      ) : (
-        <div className={`rounded-xl border border-adm-line bg-adm-surface ${rowDivider}`}>
-          {visibili.map((m) => {
-            const nome = m.descrizione || m.categoria;
-            return (
-              <div key={m.id} className="flex items-center gap-3 px-4 py-3">
-                <button
-                  type="button"
-                  onClick={() => openMovimento({ movimentoId: m.id })}
-                  className="min-w-0 flex-1 cursor-pointer text-left"
-                >
-                  <span className="block truncate font-medium text-white">{nome}</span>
-                  <span className="block truncate text-sm text-adm-muted">
-                    {formatDate(m.data)} · {nomeAuto(m.autoId)} · {m.categoria}
-                    {m.fornitoreCliente ? ` · ${m.fornitoreCliente}` : ""}
-                  </span>
+      <DataTable
+        etichetta="Movimenti"
+        righe={visibili}
+        chiave={(m) => m.id}
+        onApri={(m) => openMovimento({ movimentoId: m.id })}
+        ordineIniziale={{ id: "data", verso: "desc" }}
+        classeRiga={(m) => (m.statoPagamento === "Da saldare" && m.dataScadenza && m.dataScadenza < today ? "bg-rose-500/[0.04]" : "")}
+        vuoto={
+          <EmptyState
+            icon={Receipt}
+            title={movimenti.length === 0 ? "Nessun movimento registrato" : "Nessun movimento trovato"}
+            description={movimenti.length === 0 ? "Registra la prima entrata o uscita, o importala da Excel." : "Prova a cambiare filtri o ricerca."}
+            action={
+              movimenti.length === 0 ? (
+                <button type="button" onClick={() => openMovimento()} className={btnPrimary}>
+                  <Plus className="size-4" />
+                  Nuovo movimento
                 </button>
-                {m.allegatoPath && <Paperclip className="size-4 shrink-0 text-adm-muted" aria-label="Con allegato" />}
-                {stato(m)}
-                <span className={`min-w-24 text-right font-medium tabular-nums ${m.tipo === "Entrata" ? "text-emerald-400" : "text-slate-100"}`}>
-                  {m.tipo === "Entrata" ? "+" : "−"} {euro(m.totale)}
-                </span>
-                <RowMenu
-                  label={`Azioni per ${nome}`}
-                  items={[
-                    { label: "Modifica", icon: Pencil, onSelect: () => openMovimento({ movimentoId: m.id }) },
-                    ...(m.statoPagamento === "Da saldare"
-                      ? [
-                          {
-                            label: m.tipo === "Entrata" ? "Segna incassato" : "Segna pagato",
-                            icon: Check,
-                            onSelect: () => {
-                              updateMovimento(m.id, { statoPagamento: "Saldato", dataSaldo: today });
-                              toast(m.tipo === "Entrata" ? "Incasso registrato" : "Pagamento registrato", {
-                                label: "Annulla",
-                                onClick: () => updateMovimento(m.id, { statoPagamento: "Da saldare", dataSaldo: "" }),
-                              });
-                            },
-                          },
-                        ]
-                      : []),
-                    { label: "Duplica", icon: Copy, onSelect: () => openMovimento({ duplicaDa: m.id }) },
-                    ...(m.autoId && isAdmin
-                      ? [{ label: "Apri scheda auto", icon: CarFront, onSelect: () => router.push(`/admin/auto/${m.autoId}`) }]
-                      : []),
-                    ...(m.contattoId
-                      ? [{ label: "Apri contatto", icon: UserRound, onSelect: () => openContatto({ contattoId: m.contattoId as string }) }]
-                      : []),
-                    {
-                      label: "Elimina",
-                      icon: Trash2,
-                      danger: true,
-                      confirm: "Conferma: elimina",
-                      onSelect: () => {
-                        toast("Movimento eliminato", { label: "Annulla", onClick: deleteMovimento(m.id) });
-                      },
-                    },
-                  ]}
-                />
-              </div>
-            );
-          })}
-        </div>
-      )}
+              ) : undefined
+            }
+          />
+        }
+        colonne={[
+          {
+            id: "data",
+            titolo: "Data",
+            cella: (m) => <span className="whitespace-nowrap tabular-nums">{formatDate(m.data)}</span>,
+            ordina: (m) => m.data,
+            mobile: "sotto",
+            className: "w-28",
+          },
+          {
+            id: "descrizione",
+            titolo: "Descrizione",
+            cella: (m) => (
+              <span className="flex min-w-0 items-center gap-1.5 font-medium text-white">
+                <span className="truncate">{m.descrizione || m.categoria}</span>
+                {m.allegatoPath && <Paperclip className="size-3.5 shrink-0 text-adm-muted" aria-label="Con allegato" />}
+              </span>
+            ),
+            ordina: (m) => (m.descrizione || m.categoria).toLowerCase(),
+            mobile: "titolo",
+            className: "max-w-[18rem]",
+          },
+          {
+            id: "controparte",
+            titolo: "Fornitore / cliente",
+            cella: (m) => <span className="block max-w-[12rem] truncate">{m.fornitoreCliente || "—"}</span>,
+            ordina: (m) => m.fornitoreCliente.toLowerCase(),
+            mobile: "sotto",
+          },
+          {
+            id: "auto",
+            titolo: "Auto",
+            cella: (m) => <span className="block max-w-[11rem] truncate text-adm-muted">{nomeAuto(m.autoId)}</span>,
+            ordina: (m) => nomeAuto(m.autoId),
+            mobile: "nascosta",
+          },
+          {
+            id: "categoria",
+            titolo: "Categoria",
+            cella: (m) => <span className="text-adm-muted">{m.categoria}</span>,
+            ordina: (m) => m.categoria,
+            mobile: "nascosta",
+          },
+          {
+            id: "stato",
+            titolo: "Stato",
+            cella: (m) => stato(m) ?? <span className="text-xs text-adm-muted">Saldato</span>,
+            ordina: (m) => (m.statoPagamento === "Da saldare" ? 0 : 1),
+            mobile: "destra",
+          },
+          {
+            id: "importo",
+            titolo: "Importo",
+            destra: true,
+            cella: (m) => (
+              <span className={`whitespace-nowrap font-medium ${m.tipo === "Entrata" ? "text-emerald-400" : "text-slate-100"}`}>
+                {m.tipo === "Entrata" ? "+" : "−"} {euro(m.totale)}
+              </span>
+            ),
+            ordina: (m) => (m.tipo === "Entrata" ? m.totale : -m.totale),
+            totale: (righe) => {
+              const saldo = righe.reduce((s, m) => s + (m.tipo === "Entrata" ? m.totale : -m.totale), 0);
+              return <span className={signedText(saldo)}>{euro(saldo)}</span>;
+            },
+            mobile: "destra",
+          },
+        ]}
+        azioni={(m) => [
+          { label: "Modifica", icon: Pencil, onSelect: () => openMovimento({ movimentoId: m.id }) },
+          ...(m.statoPagamento === "Da saldare"
+            ? [
+                {
+                  label: m.tipo === "Entrata" ? "Segna incassato" : "Segna pagato",
+                  icon: Check,
+                  onSelect: () => salda([m]),
+                },
+              ]
+            : []),
+          { label: "Duplica", icon: Copy, onSelect: () => openMovimento({ duplicaDa: m.id }) },
+          ...(m.autoId && isAdmin
+            ? [{ label: "Apri scheda auto", icon: CarFront, onSelect: () => router.push(`/admin/auto/${m.autoId}`) }]
+            : []),
+          ...(m.contattoId
+            ? [{ label: "Apri contatto", icon: UserRound, onSelect: () => openContatto({ contattoId: m.contattoId as string }) }]
+            : []),
+          {
+            label: "Elimina",
+            icon: Trash2,
+            danger: true,
+            confirm: "Conferma: elimina",
+            onSelect: () => toast("Movimento eliminato", { label: "Annulla", onClick: deleteMovimento(m.id) }),
+          },
+        ]}
+        azioniMultiple={[
+          { label: "Segna saldati", icon: Check, esegui: (righe) => salda(righe.filter((m) => m.statoPagamento === "Da saldare")) },
+          {
+            label: "Esporta",
+            icon: Download,
+            esegui: (righe) => void scaricaXlsx([foglioMovimenti(righe, ctx, [`${righe.length} movimenti selezionati`])], nomeFile("Movimenti_selezionati")),
+          },
+          {
+            label: "Elimina",
+            icon: Trash2,
+            danger: true,
+            esegui: (righe) => {
+              const annulla = righe.map((m) => deleteMovimento(m.id));
+              toast(`${righe.length} movimenti eliminati`, { label: "Annulla", onClick: () => annulla.reverse().forEach((a) => a()) });
+            },
+          },
+        ]}
+      />
     </>
   );
 }
