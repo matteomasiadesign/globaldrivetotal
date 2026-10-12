@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useState } from "react";
-import { CarFront, Pencil, Plus, Search, Trash2 } from "lucide-react";
+import { CarFront, Pencil, Plus, Search, Trash2, Upload } from "lucide-react";
+import { ImportaFlotta } from "../import/Importa";
 import { useAdmin } from "@/context/AdminContext";
 import { useGestionale } from "@/context/GestionaleContext";
 import { euro } from "@/lib/gestionale/calc";
@@ -18,7 +19,7 @@ import { Field, Section } from "../../ui/Field";
 import { SelectField } from "../../ui/Inputs";
 import { EmptyState, Pill } from "../../ui/Layout";
 import RowMenu from "../../ui/RowMenu";
-import { btnPrimary, focusRing, inputCls, rowDivider, textareaCls } from "../../ui/styles";
+import { btnPrimary, btnSecondary, focusRing, inputCls, rowDivider, textareaCls } from "../../ui/styles";
 import { useToast } from "../../ui/Toast";
 
 type Draft = Omit<RentVeicolo, "id">;
@@ -119,6 +120,7 @@ export default function Flotta() {
   const toast = useToast();
   const [editing, setEditing] = useState<{ veicolo?: RentVeicolo; key: number } | null>(null);
   const [query, setQuery] = useState("");
+  const [importa, setImporta] = useState(false);
 
   const q = query.trim().toLowerCase();
   const visibili = noleggio.veicoli.filter((v) => !q || `${v.marca} ${v.modello} ${v.targa}`.toLowerCase().includes(q));
@@ -139,11 +141,18 @@ export default function Flotta() {
             className={`${inputCls} pl-9 sm:w-64`}
           />
         </div>
-        <button type="button" onClick={() => setEditing({ key: Date.now() })} className={btnPrimary}>
-          <Plus className="size-4" />
-          Nuova auto
-        </button>
+        <div className="flex gap-2">
+          <button type="button" onClick={() => setImporta(true)} className={btnSecondary}>
+            <Upload className="size-4" />
+            Importa
+          </button>
+          <button type="button" onClick={() => setEditing({ key: Date.now() })} className={btnPrimary}>
+            <Plus className="size-4" />
+            Nuova auto
+          </button>
+        </div>
       </div>
+      {importa && <ImportaFlotta onClose={() => setImporta(false)} />}
 
       {visibili.length === 0 ? (
         <EmptyState icon={CarFront} title="Nessuna auto in flotta" description="Aggiungi le auto che noleggi." />
@@ -180,6 +189,10 @@ export default function Flotta() {
                     danger: true,
                     confirm: "Conferma: elimina anche le prenotazioni",
                     onSelect: () => {
+                      if (noleggio.prenotazioni.some((p) => p.veicoloId === v.id && p.stato === "In corso")) {
+                        toast(`${nomeRentVeicolo(v)} ha un noleggio in corso: concludilo prima di eliminarla`);
+                        return;
+                      }
                       toast(`${nomeRentVeicolo(v)} eliminata dalla flotta`, { label: "Annulla", onClick: deleteRentVeicolo(v.id) });
                     },
                   },

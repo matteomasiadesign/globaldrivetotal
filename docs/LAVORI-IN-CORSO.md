@@ -8,7 +8,7 @@ In una nuova chat di Claude Code basta scrivere: **"leggi docs/LAVORI-IN-CORSO.m
 Audit dell'admin fatto con 4 agenti il 12/10. Piano in 5 fasi. Le decisioni contabili
 sono modificabili da **/admin/impostazioni** (il commercialista deve confermarle):
 margine IVA con le spese (default sì), metodi bancari (Conto, Bonifico, Carta),
-tariffe del noleggio IVA inclusa (default sì, **interruttore ancora da aggiungere**, vedi sotto).
+tariffe del noleggio IVA inclusa (default sì), backup/ripristino JSON.
 
 ## Fatto
 
@@ -34,8 +34,8 @@ sulle modifiche non salvate, contratti salvati nel dossier e numerati per anno, 
 
 ## Da fare (in ordine)
 
-1. **Impostazioni** (`ImpostazioniView.tsx`): interruttore `noleggioIvaInclusa` e riquadro **Backup**: «Scarica backup» (JSON di `esportaBackup()`) e «Ripristina da backup» (file → `ripristinaBackup`).
-2. **Noleggio**: pulsante Importa in `noleggio/Flotta.tsx` (`ImportaFlotta`) e Esporta in `NoleggioView.tsx` (`foglioPrenotazioni`, `foglioFlotta`, `foglioNoleggioPerMese`); impedire di eliminare un'auto con noleggio in corso.
+1. ~~Impostazioni: interruttore IVA noleggio e backup~~ FATTO.
+2. ~~Noleggio: import flotta, export, blocco eliminazione con noleggio in corso~~ FATTO.
 3. **Migrazione 2** `supabase/migrations/2026101X_admin_fasi_2_5.sql` (+ stesse modifiche in `schema.sql`): `movimenti.allegato_path/allegato_nome`, `noleggio_prenotazioni.movimento_id`, `impostazioni.noleggio_iva_inclusa`, categorie «Noleggio» e «Altre entrate», vista `liquidazione_iva` con l'IVA delle altre entrate (entrate con categoria diversa da vendita/intermediazione). Testarla in PGlite come la prima.
 4. **Oggi** (`TodayView.tsx`): ritiri e riconsegne del noleggio di oggi, incassi scaduti, richieste in gestione ferme.
 5. **Ricerca globale Ctrl+K** e «+ Nuovo» globale (usa `useEditors()` di `AdminEditors.tsx`).

@@ -8,7 +8,10 @@ import { useGestionale } from "@/context/GestionaleContext";
 import { formatDate } from "@/lib/admin/dates";
 import { euro } from "@/lib/gestionale/calc";
 import { computeAvvisiRent, giorniNoleggio, importoPrenotazione, nomeRentVeicolo } from "@/lib/gestionale/rent";
+import { foglioFlotta, foglioNoleggioPerMese, foglioPrenotazioni } from "@/lib/export/gestionale";
+import { nomeFile } from "@/lib/export/scrivi";
 import { Stat } from "../ui/Data";
+import ExportMenu, { useContestoExport } from "../ui/ExportMenu";
 import { useUrlState } from "../useUrlState";
 import { FilterTabs, PageHeader, Panel, type TabOption } from "../ui/Layout";
 import Calendario from "./noleggio/Calendario";
@@ -86,6 +89,8 @@ function Panoramica() {
 
 export default function NoleggioView({ initialTab = "panoramica" }: { initialTab?: NoleggioTab }) {
   const { noleggio } = useGestionale();
+  const { today } = useAdmin();
+  const ctx = useContestoExport();
   const [tab, setTab] = useUrlState<NoleggioTab>("tab", initialTab);
 
   const tabs: TabOption<NoleggioTab>[] = [
@@ -99,7 +104,20 @@ export default function NoleggioView({ initialTab = "panoramica" }: { initialTab
 
   return (
     <>
-      <PageHeader title="Noleggio" description="Global Rent: flotta, clienti, prenotazioni e preventivi." />
+      <PageHeader
+        title="Noleggio"
+        description="Global Rent: flotta, clienti, prenotazioni e preventivi."
+        actions={
+          <ExportMenu
+            nome={nomeFile("Noleggio", today)}
+            fogli={() => [
+              foglioPrenotazioni(noleggio.prenotazioni, ctx, ["Tutte le prenotazioni"]),
+              foglioNoleggioPerMese(Number(today.slice(0, 4)), ctx),
+              foglioFlotta(ctx),
+            ]}
+          />
+        }
+      />
       <div className="mb-5">
         <FilterTabs tabs={tabs} value={tab} onChange={setTab} label="Sezioni del noleggio" />
       </div>

@@ -2,7 +2,12 @@
 
 import React from "react";
 import Link from "next/link";
+import { Download, Upload } from "lucide-react";
+import { useAdmin } from "@/context/AdminContext";
 import { useGestionale } from "@/context/GestionaleContext";
+import { nomeFile, scaricaBlob } from "@/lib/export/scrivi";
+import { btnSecondary } from "../ui/styles";
+import { useToast } from "../ui/Toast";
 import { PAGAMENTI, type Pagamento } from "@/lib/gestionale/types";
 import { Field, ToggleRow } from "../ui/Field";
 import { NumberField, TextField } from "../ui/Inputs";
@@ -16,7 +21,9 @@ const frazione = (n: number | null, predefinito: number) =>
   n == null || n < 0 || n > 100 ? predefinito : n / 100;
 
 export default function ImpostazioniView() {
-  const { impostazioni: s, updateImpostazioni } = useGestionale();
+  const { impostazioni: s, updateImpostazioni, esportaBackup, ripristinaBackup } = useGestionale();
+  const { today } = useAdmin();
+  const toast = useToast();
 
   return (
     <>
@@ -63,6 +70,72 @@ export default function ImpostazioniView() {
             />
             <p className="text-xs text-adm-muted">
               Cambia il calcolo di IVA, registri, analisi e schede auto, anche per le vendite già registrate.
+            </p>
+          </div>
+        </Panel>
+
+        <Panel title="Noleggio">
+          <div className="grid gap-3 p-4">
+            <ToggleRow
+              title="Le tariffe del noleggio comprendono l'IVA"
+              description={
+                s.noleggioIvaInclusa
+                  ? `A noleggio concluso l'incasso si scorpora: 100 € = ${(100 / (1 + s.aliquotaIva)).toFixed(2)} € + IVA.`
+                  : `L'IVA si aggiunge alla tariffa: 100 € diventano ${(100 * (1 + s.aliquotaIva)).toFixed(2)} €.`
+              }
+              checked={s.noleggioIvaInclusa}
+              onChange={(noleggioIvaInclusa) => updateImpostazioni({ noleggioIvaInclusa })}
+            />
+          </div>
+        </Panel>
+
+        <Panel title="Backup">
+          <div className="grid gap-3 p-4">
+            <p className="text-sm text-slate-300">
+              Finché i conti restano in questo browser, scarica ogni tanto una copia: si ripristina da qui, anche su un
+              altro computer.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                className={btnSecondary}
+                onClick={() =>
+                  scaricaBlob(
+                    new Blob([JSON.stringify({ app: "global-drive-gestionale", creato: new Date().toISOString(), dati: esportaBackup() }, null, 1)], {
+                      type: "application/json",
+                    }),
+                    `${nomeFile("Backup", today)}.json`
+                  )
+                }
+              >
+                <Download className="size-4" />
+                Scarica backup
+              </button>
+              <label className={`${btnSecondary} cursor-pointer`}>
+                <Upload className="size-4" />
+                Ripristina da backup
+                <input
+                  type="file"
+                  accept=".json,application/json"
+                  className="sr-only"
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0];
+                    e.target.value = "";
+                    if (!file) return;
+                    try {
+                      const json = JSON.parse(await file.text());
+                      const esito = ripristinaBackup(json?.dati ?? json);
+                      toast(esito.ok ? "Backup ripristinato" : esito.errore);
+                    } catch {
+                      toast("Il file non è un backup valido");
+                    }
+                  }}
+                />
+              </label>
+            </div>
+            <p className="text-xs text-amber-300">
+              Il ripristino sostituisce tutti i conti attuali (auto, movimenti, contatti, noleggio): scarica prima un
+              backup di quelli di adesso. Le auto del catalogo e i documenti non sono nel backup.
             </p>
           </div>
         </Panel>
