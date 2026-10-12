@@ -43,8 +43,14 @@ export function nomeVeicolo(v: Pick<Veicolo, "marca" | "modello" | "targa">) {
   return [base, v.targa].filter(Boolean).join(" · ") || "Auto senza nome";
 }
 
-/** Come lo stato della scheda economica si riflette sul catalogo pubblico. */
-export function catalogoDaStato(stato: Stato): { status: CarStatus; hidden?: boolean; featured?: false } {
+/**
+ * Come lo stato della scheda economica si riflette sul catalogo pubblico. Un'auto venduta e poi
+ * archiviata resta "Venduta" (nascosta): non deve tornare disponibile.
+ */
+export function catalogoDaStato(
+  stato: Stato,
+  venduta = false
+): { status: CarStatus; hidden?: boolean; featured?: false } {
   switch (stato) {
     case "In vendita":
       return { status: "Disponibile", hidden: false };
@@ -53,6 +59,9 @@ export function catalogoDaStato(stato: Stato): { status: CarStatus; hidden?: boo
     case "Venduta":
       return { status: "Venduta", featured: false };
     case "Archiviata":
+      return venduta
+        ? { status: "Venduta", hidden: true, featured: false }
+        : { status: "Disponibile", hidden: true, featured: false };
     case "In valutazione":
     case "Acquistata":
     case "In preparazione":
@@ -80,6 +89,26 @@ export function costiDiretti(veicoloId: string, movimenti: Movimento[]) {
         m.categoria !== "Acquisto veicolo"
     )
     .reduce((s, m) => s + (Number(m.totale) || 0), 0);
+}
+
+/**
+ * IVA che si porta davvero in detrazione. Con il margine calcolato sulle spese
+ * (`margineConSpese`) le spese dirette di un'auto in regime del margine entrano nel
+ * margine col loro totale, quindi la loro IVA non si detrae anche se il movimento
+ * la indica come detraibile.
+ */
+export function ivaDetraibileEffettiva(m: Movimento, veicoli: Veicolo[], impostazioni: Impostazioni): number {
+  if (m.tipo !== "Uscita" || !m.ivaDetraibile) return 0;
+  if (
+    impostazioni.margineConSpese &&
+    m.autoId &&
+    m.naturaCosto === "Variabile diretto auto" &&
+    m.categoria !== "Acquisto veicolo"
+  ) {
+    const v = veicoli.find((x) => x.id === m.autoId);
+    if (v && v.servizio !== "Conto vendita") return 0;
+  }
+  return Number(m.iva) || 0;
 }
 
 export function computeVeicolo(
@@ -110,10 +139,10 @@ export function computeVeicolo(
       ? prezzoVendita - costoTotale
       : null;
 
+  // Base del regime del margine: il solo prezzo d'acquisto, o anche le spese (vedi Impostazioni).
+  const baseMargine = (Number(v.prezzoAcquisto) || 0) + (impostazioni.margineConSpese ? cd : 0);
   const margineRegimeIva =
-    !isContoVendita && hasVendita
-      ? Math.max(0, prezzoVendita - (Number(v.prezzoAcquisto) || 0))
-      : null;
+    !isContoVendita && hasVendita ? Math.max(0, prezzoVendita - baseMargine) : null;
   const ivaRegimeMargine =
     margineRegimeIva !== null
       ? margineRegimeIva * (impostazioni.aliquotaIva / (1 + impostazioni.aliquotaIva))
@@ -158,6 +187,18 @@ export type CalcoloVeicolo = ReturnType<typeof computeVeicolo>;
 
 // --- Liquidazione IVA trimestrale -------------------------------------------
 
+/** Categorie le cui entrate sono già contate dalle vendite delle auto (margine o commissione). */
+export const CATEGORIE_VENDITA = ["Vendita veicolo", "Intermediazione conto vendita"];
+
+/**
+ * IVA a debito delle altre entrate (noleggi, servizi…): quella scritta nel movimento. Le vendite
+ * delle auto restano fuori, perché la loro IVA si calcola dal margine o dalla commissione.
+ */
+export function ivaAltraEntrata(m: Movimento): number {
+  if (m.tipo !== "Entrata" || CATEGORIE_VENDITA.includes(m.categoria)) return 0;
+  return Number(m.iva) || 0;
+}
+
 export const PERIODI_IVA: Record<number, { periodo: string; scadenza: string }> = {
   1: { periodo: "01/01 – 31/03", scadenza: "18 maggio" },
   2: { periodo: "01/04 – 30/06", scadenza: "20 agosto" },
@@ -175,6 +216,7 @@ export function liquidazioneTrimestre(
 ) {
   let ivaMargine = 0;
   let ivaCommissioni = 0;
+  let ivaAltreEntrate = 0;
   let ivaDetraibile = 0;
 
   veicoli.forEach((v) => {
@@ -184,16 +226,18 @@ export function liquidazioneTrimestre(
     else ivaMargine += c.ivaRegimeMargine || 0;
   });
   movimenti.forEach((m) => {
-    if (m.tipo !== "Uscita" || !m.ivaDetraibile || trimestre(m.data) !== trim || annoNum(m.data) !== anno) return;
-    ivaDetraibile += m.iva;
+    if (trimestre(m.data) !== trim || annoNum(m.data) !== anno) return;
+    ivaDetraibile += ivaDetraibileEffettiva(m, veicoli, impostazioni);
+    ivaAltreEntrate += ivaAltraEntrata(m);
   });
 
-  const saldoBase = Math.max(0, ivaMargine + ivaCommissioni - ivaDetraibile);
+  const saldoBase = Math.max(0, ivaMargine + ivaCommissioni + ivaAltreEntrate - ivaDetraibile);
   const maggiorazione = saldoBase * impostazioni.maggiorazioneTrimestrale;
   return {
     trim,
     ivaMargine,
     ivaCommissioni,
+    ivaAltreEntrate,
     ivaDetraibile,
     saldoBase,
     maggiorazione,

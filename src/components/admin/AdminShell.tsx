@@ -19,6 +19,7 @@ import {
   KeyRound,
   Landmark,
   LayoutDashboard,
+  Lock,
   LogOut,
   MoreHorizontal,
   Receipt,
@@ -29,10 +30,13 @@ import {
 } from "lucide-react";
 import { useAdmin } from "@/context/AdminContext";
 import { useGestionale } from "@/context/GestionaleContext";
+import { isAdminOnlyPath } from "@/lib/admin/access";
 import { isOpenAppointment } from "@/lib/admin/constants";
 import AdminLogin from "./AdminLogin";
 import { EditorsProvider } from "./AdminEditors";
+import { EmptyState } from "./ui/Layout";
 import RowMenu from "./ui/RowMenu";
+import { btnSecondary } from "./ui/styles";
 import { ToastProvider } from "./ui/Toast";
 
 interface NavItem {
@@ -52,7 +56,7 @@ interface NavGroup {
 const PRIMARY_COUNT = 4;
 
 function useNavGroups(): NavGroup[] {
-  const { leads, appointments, today } = useAdmin();
+  const { leads, appointments, today, isAdmin } = useAdmin();
   const { movimenti } = useGestionale();
   const newLeads = leads.filter((l) => l.status === "nuovo").length;
   const todayOpen = appointments.filter(
@@ -62,6 +66,13 @@ function useNavGroups(): NavGroup[] {
     (m) => m.statoPagamento === "Da saldare" && m.dataScadenza && m.dataScadenza < today
   ).length;
 
+  // L'operatore non vede le sezioni dei conti (vedi lib/admin/access.ts).
+  return allNavGroups(newLeads, todayOpen, overdue)
+    .map((g) => ({ ...g, items: g.items.filter((i) => isAdmin || !isAdminOnlyPath(i.href)) }))
+    .filter((g) => g.items.length > 0);
+}
+
+function allNavGroups(newLeads: number, todayOpen: number, overdue: number): NavGroup[] {
   return [
     {
       items: [
@@ -132,7 +143,10 @@ function UserMenu({ placement, compact = false }: { placement: "top" | "bottom";
             <>
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-sm font-medium text-white">{name}</span>
-                <span className="block truncate text-xs text-adm-muted">{user?.email}</span>
+                <span className="block truncate text-xs text-adm-muted">
+                  {user?.role === "operatore" ? "Operatore · " : ""}
+                  {user?.email}
+                </span>
               </span>
               <ChevronsUpDown className="size-4 shrink-0 text-adm-muted" />
             </>
@@ -164,6 +178,7 @@ function Badge({ value, className }: { value: number; className: string }) {
 
 function Frame({ children }: { children: React.ReactNode }) {
   const pathname = usePathname() ?? "";
+  const { isAdmin } = useAdmin();
   const groups = useNavGroups();
   const [moreOpen, setMoreOpen] = useState(false);
   const sheetRef = useRef<HTMLDivElement>(null);
@@ -257,7 +272,20 @@ function Frame({ children }: { children: React.ReactNode }) {
         </header>
 
         <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 pb-28 sm:px-6 lg:px-8 lg:py-8 lg:pb-10">
-          {children}
+          {!isAdmin && isAdminOnlyPath(pathname) ? (
+            <EmptyState
+              icon={Lock}
+              title="Sezione riservata all'amministratore"
+              description="Qui ci sono prezzi d'acquisto, margini e conti. Se ti serve accedere, chiedi all'amministratore di cambiarti il ruolo."
+              action={
+                <Link href="/admin" className={btnSecondary}>
+                  Torna a Oggi
+                </Link>
+              }
+            />
+          ) : (
+            children
+          )}
         </main>
       </div>
 

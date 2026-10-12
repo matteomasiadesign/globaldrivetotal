@@ -3,7 +3,8 @@
 import React from "react";
 import Link from "next/link";
 import { useGestionale } from "@/context/GestionaleContext";
-import { Field } from "../ui/Field";
+import { PAGAMENTI, type Pagamento } from "@/lib/gestionale/types";
+import { Field, ToggleRow } from "../ui/Field";
 import { NumberField, TextField } from "../ui/Inputs";
 import { PageHeader, Panel } from "../ui/Layout";
 import { Note } from "../ui/Data";
@@ -40,14 +41,70 @@ export default function ImpostazioniView() {
               <NumberField step="0.1" value={perc(s.sogliaRoi)} onCommit={(n) => updateImpostazioni({ sogliaRoi: frazione(n, 0.15) })} />
             </Field>
             <Field label="Giorni di stock prima dell'avviso" hint="Oltre questa soglia l'auto compare tra le cose da sistemare.">
-              <NumberField value={s.sogliaGiorniStock} onCommit={(n) => updateImpostazioni({ sogliaGiorniStock: n || 60 })} />
+              <NumberField
+                value={s.sogliaGiorniStock}
+                onCommit={(n) => updateImpostazioni({ sogliaGiorniStock: n == null || n < 1 ? 60 : Math.round(n) })}
+              />
             </Field>
+          </div>
+        </Panel>
+
+        <Panel title="Regime del margine">
+          <div className="grid gap-3 p-4">
+            <ToggleRow
+              title="Includi le spese dell'auto nel margine"
+              description={
+                s.margineConSpese
+                  ? "Margine = vendita − acquisto − spese di riparazione e accessorie dell'auto. L'IVA di queste spese non si detrae (metodo analitico, art. 36 DL 41/1995)."
+                  : "Margine = vendita − acquisto. L'IVA delle spese si detrae quando il movimento la indica come detraibile."
+              }
+              checked={s.margineConSpese}
+              onChange={(margineConSpese) => updateImpostazioni({ margineConSpese })}
+            />
+            <p className="text-xs text-adm-muted">
+              Cambia il calcolo di IVA, registri, analisi e schede auto, anche per le vendite già registrate.
+            </p>
+          </div>
+        </Panel>
+
+        <Panel title="Banca">
+          <div className="grid gap-3 p-4">
+            <p className="text-sm text-slate-300">
+              Metodi di pagamento che passano dal conto corrente: compaiono in Banca da riconciliare.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {PAGAMENTI.map((p) => {
+                const attivo = s.pagamentiBanca.includes(p);
+                const toggle = () => {
+                  const next: Pagamento[] = attivo ? s.pagamentiBanca.filter((x) => x !== p) : [...s.pagamentiBanca, p];
+                  updateImpostazioni({ pagamentiBanca: PAGAMENTI.filter((x) => next.includes(x)) });
+                };
+                return (
+                  <button
+                    key={p}
+                    type="button"
+                    aria-pressed={attivo}
+                    onClick={toggle}
+                    className={`min-h-10 rounded-lg border px-3.5 text-sm transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-400 ${
+                      attivo
+                        ? "border-blue-500 bg-blue-600/20 text-white"
+                        : "border-adm-line text-adm-muted hover:text-slate-200"
+                    }`}
+                  >
+                    {p === "CASH" ? "Contanti" : p === "CONTO" ? "Conto" : p}
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </Panel>
 
         <Panel title="Contratti di vendita">
           <div className="grid gap-3 p-4 sm:grid-cols-2">
-            <Field label="Prossimo numero contratto" hint="Aumenta da solo a ogni contratto generato.">
+            <Field
+              label={`Prossimo numero contratto (${s.annoGestione})`}
+              hint="Aumenta da solo a ogni contratto. La numerazione riparte da 1 ogni anno di vendita."
+            >
               <NumberField value={s.prossimoNumeroContratto} onCommit={(n) => updateImpostazioni({ prossimoNumeroContratto: n || 1 })} />
             </Field>
             <Field label="PEC aziendale" hint="Compare nell'intestazione del contratto.">

@@ -9,8 +9,7 @@ export const APPOINTMENT_TYPES: AppointmentType[] = [
   "Test Drive",
   "Trattativa / Acquisto",
   "Consegna Vettura",
-  "Perizia Permuta",
-  "Consulenza Finanziamento",
+  "Valutazione auto",
   "Ritiro Documenti",
 ];
 
@@ -60,7 +59,7 @@ export const LEAD_TO_APPOINTMENT_TYPE: Record<LeadType, AppointmentType> = {
   test_drive: "Test Drive",
   contatto: "Trattativa / Acquisto",
   commissione: "Trattativa / Acquisto",
-  conto_vendita: "Perizia Permuta",
+  conto_vendita: "Valutazione auto",
   casper: "Trattativa / Acquisto",
 };
 

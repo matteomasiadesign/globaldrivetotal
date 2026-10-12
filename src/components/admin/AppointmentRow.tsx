@@ -163,7 +163,11 @@ export default function AppointmentRow({
               icon: Trash2,
               danger: true,
               confirm: "Conferma eliminazione",
-              onSelect: () => deleteAppointment(a.id),
+              onSelect: () =>
+                toast(`Appuntamento con ${a.clientName} eliminato`, {
+                  label: "Annulla",
+                  onClick: deleteAppointment(a.id),
+                }),
             },
           ]}
         />

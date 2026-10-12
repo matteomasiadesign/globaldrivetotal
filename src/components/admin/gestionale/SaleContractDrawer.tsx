@@ -5,9 +5,9 @@ import Link from "next/link";
 import { useAdmin } from "@/context/AdminContext";
 import { useGestionale } from "@/context/GestionaleContext";
 import { useSite } from "@/context/SiteContext";
-import { eur } from "@/lib/admin/constants";
-import { nomeVeicolo } from "@/lib/gestionale/calc";
+import { euro, nomeVeicolo } from "@/lib/gestionale/calc";
 import { generaContrattoVenditaPDF } from "@/lib/gestionale/contractPdf";
+import { formatBytes, saveVehicleFile } from "@/lib/storage/vehicleFiles";
 import Drawer from "../ui/Drawer";
 import { Field, Section, ToggleRow } from "../ui/Field";
 import { SelectField } from "../ui/Inputs";
@@ -26,21 +26,23 @@ export default function SaleContractDrawer({
   veicoloId: string;
   onClose: () => void;
 }) {
-  const { today, addDocument } = useAdmin();
+  const { today, documents, addDocument, deleteDocument } = useAdmin();
   const { site } = useSite();
-  const { veicoli, contatti, impostazioni, updateVeicolo, registraVendita } = useGestionale();
+  const { veicoli, contatti, impostazioni, updateVeicolo, registraVendita, prossimoContratto } = useGestionale();
   const toast = useToast();
   const veicolo = veicoli.find((v) => v.id === veicoloId);
+  // Ristampa: si riparte dall'acquirente già registrato sulla scheda.
+  const giaAcquirente = contatti.find((c) => c.id === veicolo?.acquirenteId);
 
   const [f, setF] = useState(() => ({
     targa: veicolo?.targa ?? "",
-    contattoId: "",
-    nome: "",
-    nascitaSede: "",
-    codiceFiscale: "",
-    residenza: "",
-    telefono: "",
-    email: "",
+    contattoId: giaAcquirente?.id ?? "",
+    nome: giaAcquirente?.nome ?? "",
+    nascitaSede: giaAcquirente?.nascitaSede ?? "",
+    codiceFiscale: giaAcquirente?.codiceFiscale ?? "",
+    residenza: giaAcquirente?.residenza ?? "",
+    telefono: giaAcquirente?.telefono ?? "",
+    email: giaAcquirente?.email ?? "",
     prezzoVendita: veicolo?.prezzoVendita ? String(veicolo.prezzoVendita) : "",
     dataVendita: veicolo?.dataVendita || today,
     dataConsegna: "",
@@ -54,6 +56,8 @@ export default function SaleContractDrawer({
 
   if (!veicolo) return null;
 
+  const contratto = prossimoContratto(veicolo.id, f.dataVendita);
+  const etichettaNumero = `N° ${contratto.numero}/${contratto.anno}`;
   const clienti = contatti.filter((c) => c.tipo !== "Fornitore");
   const aziendaIncompleta = !site.vatNumber || !site.legalAddress;
 
@@ -95,8 +99,9 @@ export default function SaleContractDrawer({
     };
 
     setGenerating(true);
+    let pdf: File;
     try {
-      await generaContrattoVenditaPDF(
+      ({ file: pdf } = await generaContrattoVenditaPDF(
         schedaAggiornata,
         { marca: veicolo.marca, modello: veicolo.modello, targa },
         {
@@ -106,8 +111,8 @@ export default function SaleContractDrawer({
           telefono: site.phone,
           email: site.email,
           pec: impostazioni.pecAzienda,
-          numeroContratto: impostazioni.prossimoNumeroContratto,
-          anno: impostazioni.annoGestione,
+          numeroContratto: contratto.numero,
+          anno: contratto.anno,
         },
         acquirente,
         {
@@ -116,7 +121,7 @@ export default function SaleContractDrawer({
           estensioneGaranzia: f.estensioneGaranzia,
           luogoData: f.luogoData,
         }
-      );
+      ));
     } catch (e) {
       console.error("Contratto non generato", e);
       toast("Non sono riuscito a generare il PDF, riprova");
@@ -128,29 +133,53 @@ export default function SaleContractDrawer({
     registraVendita(veicolo.id, {
       prezzoVendita,
       dataVendita: f.dataVendita,
+      dataConsegna: f.dataConsegna,
       acquirente,
       contattoId: f.contattoId || null,
       strumentoPagamento: f.strumentoPagamento,
+      contratto,
     });
-    // Il dossier tiene solo il riferimento: codice fiscale e indirizzo restano nel PDF e in anagrafica.
-    // Per un'auto fuori catalogo il dossier ha come chiave la scheda economica.
+
+    // Il PDF resta nel dossier dell'auto (per un'auto fuori catalogo la chiave è la scheda economica).
+    // Codice fiscale e indirizzo restano nel PDF e in anagrafica, non nelle note.
+    const chiaveDossier = veicolo.carId ?? veicolo.id;
+    const titolo = `Contratto di vendita ${etichettaNumero}`;
+    let storagePath: string | undefined;
+    try {
+      storagePath = await saveVehicleFile(pdf, chiaveDossier);
+    } catch (e) {
+      console.error("PDF del contratto non archiviato", e);
+    }
+    // Una ristampa sostituisce la copia precedente con lo stesso numero.
+    if (contratto.ristampa) {
+      documents
+        .filter((d) => d.carId === chiaveDossier && d.category === "Contratto di Vendita" && d.title === titolo)
+        .forEach((d) => deleteDocument(d.id));
+    }
     addDocument({
-      carId: veicolo.carId ?? veicolo.id,
+      carId: chiaveDossier,
       carTitle: nomeVeicolo(schedaAggiornata),
-      title: `Contratto di vendita N° ${impostazioni.prossimoNumeroContratto}/${impostazioni.annoGestione}`,
+      title: titolo,
       category: "Contratto di Vendita",
       source: "local_pdf",
-      notes: `Acquirente ${acquirente.nome || "non indicato"} · ${eur(prezzoVendita)}`,
+      storagePath,
+      fileName: pdf.name,
+      fileSize: formatBytes(pdf.size),
+      notes: `Acquirente ${acquirente.nome || "non indicato"} · ${euro(prezzoVendita)}`,
     });
-    toast(`Contratto generato: ${nomeVeicolo(schedaAggiornata)} risulta venduta`);
+    toast(
+      storagePath
+        ? `Contratto ${etichettaNumero} generato e salvato nel dossier: ${nomeVeicolo(schedaAggiornata)} risulta venduta`
+        : `Contratto ${etichettaNumero} scaricato, ma non salvato nel dossier: caricalo a mano da Documenti`
+    );
     onClose();
   }
 
   return (
     <Drawer
       title="Contratto di vendita"
-      subtitle={`${nomeVeicolo(veicolo)} · N° ${impostazioni.prossimoNumeroContratto}/${impostazioni.annoGestione}`}
-      submitLabel={generating ? "Genero il PDF…" : "Genera e scarica PDF"}
+      subtitle={`${nomeVeicolo(veicolo)} · ${etichettaNumero}`}
+      submitLabel={generating ? "Genero il PDF…" : contratto.ristampa ? "Ristampa PDF" : "Genera e scarica PDF"}
       submitDisabled={generating}
       busy={generating}
       onSubmit={submit}
@@ -159,7 +188,14 @@ export default function SaleContractDrawer({
     >
       <div className="rounded-lg border border-adm-line bg-adm-bg px-3.5 py-3 text-sm text-slate-300">
         Alla generazione l&apos;auto passa a <span className="font-medium text-white">Venduta</span>
-        {veicolo.carId ? " e il catalogo del sito si aggiorna" : ""}; l&apos;acquirente resta in anagrafica.
+        {veicolo.carId ? " e il catalogo del sito si aggiorna" : ""}; l&apos;acquirente resta in anagrafica e il PDF
+        nel dossier dell&apos;auto.
+        {contratto.ristampa && (
+          <span className="mt-1.5 block text-amber-300">
+            Questa auto ha già il contratto {etichettaNumero}: viene ristampato con lo stesso numero e sostituisce la
+            copia nel dossier.
+          </span>
+        )}
         {aziendaIncompleta && (
           <span className="mt-1.5 block text-amber-300">
             Mancano partita IVA o sede legale dell&apos;azienda: compaiono vuote nel contratto.{" "}

@@ -5,10 +5,13 @@ import { CalendarClock, Check } from "lucide-react";
 import { useAdmin } from "@/context/AdminContext";
 import { useGestionale } from "@/context/GestionaleContext";
 import { euro, nomeVeicolo } from "@/lib/gestionale/calc";
-import { formatShortDate } from "@/lib/admin/dates";
+import { formatDate } from "@/lib/admin/dates";
+import { foglioScadenzario } from "@/lib/export/gestionale";
+import { nomeFile } from "@/lib/export/scrivi";
 import { useEditors } from "../AdminEditors";
 import { useUrlState } from "../useUrlState";
 import { Note, Stat } from "../ui/Data";
+import ExportMenu, { useContestoExport } from "../ui/ExportMenu";
 import { EmptyState, FilterTabs, PageHeader, Pill, type TabOption } from "../ui/Layout";
 import { btnSecondary, rowDivider } from "../ui/styles";
 import { useToast } from "../ui/Toast";
@@ -20,6 +23,7 @@ export default function ScadenzarioView({ initialTab = "incassi" }: { initialTab
   const { movimenti, veicoli, updateMovimento } = useGestionale();
   const { openMovimento } = useEditors();
   const toast = useToast();
+  const ctx = useContestoExport();
   const [tab, setTab] = useUrlState<ScadenzarioTab>("tab", initialTab);
 
   const nomeAuto = (id: string | null) => {
@@ -52,7 +56,19 @@ export default function ScadenzarioView({ initialTab = "incassi" }: { initialTab
 
   return (
     <>
-      <PageHeader title="Scadenzario" description="Incassi e pagamenti ancora da saldare, dal più urgente." />
+      <PageHeader
+        title="Scadenzario"
+        description="Incassi e pagamenti ancora da saldare, dal più urgente."
+        actions={
+          <ExportMenu
+            nome={nomeFile("Scadenzario", today)}
+            fogli={() => [
+              { ...foglioScadenzario(incassi, ctx, [`Da incassare al ${formatDate(today)}`]), nome: "Da incassare" },
+              { ...foglioScadenzario(pagamenti, ctx, [`Da pagare al ${formatDate(today)}`]), nome: "Da pagare" },
+            ]}
+          />
+        }
+      />
 
       <div className="mb-4 grid gap-3 sm:grid-cols-2">
         <Stat
@@ -97,7 +113,7 @@ export default function ScadenzarioView({ initialTab = "incassi" }: { initialTab
                   </span>
                 </button>
                 <Pill tone={scaduto ? "red" : m.dataScadenza ? "slate" : "amber"}>
-                  {m.dataScadenza ? `${scaduto ? "Scaduto il " : "Entro il "}${formatShortDate(m.dataScadenza)}` : "Senza scadenza"}
+                  {m.dataScadenza ? `${scaduto ? "Scaduto il " : "Entro il "}${formatDate(m.dataScadenza)}` : "Senza scadenza"}
                 </Pill>
                 <span className="min-w-24 text-right font-medium tabular-nums text-white">{euro(m.totale)}</span>
                 <button type="button" onClick={() => saldato(m.id)} className={btnSecondary}>

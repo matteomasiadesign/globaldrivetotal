@@ -1,7 +1,15 @@
 "use client";
 
 import React, { useState } from "react";
+import { Paperclip } from "lucide-react";
 import { useAdmin } from "@/context/AdminContext";
+import {
+  ACCEPT_ATTR,
+  deleteVehicleFile,
+  getVehicleFileUrl,
+  saveVehicleFile,
+  validateVehicleFile,
+} from "@/lib/storage/vehicleFiles";
 import { useGestionale } from "@/context/GestionaleContext";
 import { euro, nomeVeicolo } from "@/lib/gestionale/calc";
 import {
@@ -22,6 +30,8 @@ import { useToast } from "../ui/Toast";
 export interface MovimentoEditorOptions {
   /** Movimento da modificare; se assente se ne crea uno nuovo. */
   movimentoId?: string;
+  /** Nuovo movimento copiato da questo (costi ricorrenti), con la data di oggi. */
+  duplicaDa?: string;
   /** Auto a cui collegare il nuovo movimento. */
   autoId?: string;
 }
@@ -29,6 +39,7 @@ export interface MovimentoEditorOptions {
 // Il pannello unico per registrare un'entrata o un'uscita, da qualunque pagina.
 export default function MovimentoDrawer({
   movimentoId,
+  duplicaDa,
   autoId,
   onClose,
 }: MovimentoEditorOptions & { onClose: () => void }) {
@@ -36,23 +47,29 @@ export default function MovimentoDrawer({
   const { movimenti, veicoli, contatti, impostazioni, addMovimento, updateMovimento } = useGestionale();
   const toast = useToast();
   const esistente = movimenti.find((m) => m.id === movimentoId);
+  // Da copiare: tutti i campi tranne data, documento, saldo e riconciliazione.
+  const base = esistente ?? movimenti.find((m) => m.id === duplicaDa);
+  const [allegato, setAllegato] = useState<File | null>(null);
+  const [togliAllegato, setTogliAllegato] = useState(false);
+  const [busy, setBusy] = useState(false);
 
   const [f, setF] = useState(() => ({
     data: esistente?.data ?? today,
-    tipo: (esistente?.tipo ?? "Uscita") as TipoMovimento,
-    autoId: esistente?.autoId ?? autoId ?? "",
-    contattoId: esistente?.contattoId ?? "",
-    descrizione: esistente?.descrizione ?? "",
-    fornitoreCliente: esistente?.fornitoreCliente ?? "",
-    categoria: esistente?.categoria ?? (autoId ? "Meccanica / Tagliando" : "Altro"),
-    naturaCosto: (esistente?.naturaCosto ?? (autoId ? "Variabile diretto auto" : "Variabile generale")) as NaturaCosto,
-    pagamento: (esistente?.pagamento ?? "CONTO") as Pagamento,
-    imponibile: esistente ? String(esistente.imponibile) : "",
-    iva: esistente ? String(esistente.iva) : "",
-    ivaDetraibile: esistente?.ivaDetraibile ?? false,
+    tipo: (base?.tipo ?? "Uscita") as TipoMovimento,
+    autoId: base?.autoId ?? autoId ?? "",
+    contattoId: base?.contattoId ?? "",
+    descrizione: base?.descrizione ?? "",
+    fornitoreCliente: base?.fornitoreCliente ?? "",
+    categoria: base?.categoria ?? (autoId ? "Meccanica / Tagliando" : "Altro"),
+    naturaCosto: (base?.naturaCosto ?? (autoId ? "Variabile diretto auto" : "Variabile generale")) as NaturaCosto,
+    pagamento: (base?.pagamento ?? "CONTO") as Pagamento,
+    imponibile: base ? String(base.imponibile) : "",
+    iva: base ? String(base.iva) : "",
+    ivaDetraibile: base?.ivaDetraibile ?? false,
     numeroDocumento: esistente?.numeroDocumento ?? "",
-    statoPagamento: (esistente?.statoPagamento ?? "Saldato") as StatoPagamento,
+    statoPagamento: (base?.statoPagamento ?? "Saldato") as StatoPagamento,
     dataScadenza: esistente?.dataScadenza ?? "",
+    dataSaldo: esistente?.dataSaldo ?? "",
   }));
   const set = <K extends keyof typeof f>(key: K, value: (typeof f)[K]) =>
     setF((prev) => ({ ...prev, [key]: value }));
@@ -74,8 +91,36 @@ export default function MovimentoDrawer({
     }));
   }
 
-  function submit() {
+  async function apriAllegato(path: string) {
+    const url = await getVehicleFileUrl(path);
+    if (url) window.open(url, "_blank", "noopener");
+    else toast("Non trovo il file: potrebbe essere stato caricato da un altro browser");
+  }
+
+  // Il numero scritto in "Imponibile" è in realtà il totale: lo si divide in imponibile e IVA.
+  function scorpora() {
+    const totale = Number(f.imponibile) || 0;
+    const netto = Math.round((totale / (1 + impostazioni.aliquotaIva)) * 100) / 100;
+    setF((prev) => ({ ...prev, imponibile: String(netto), iva: String(Math.round((totale - netto) * 100) / 100) }));
+  }
+
+  async function submit() {
     const saldato = f.statoPagamento === "Saldato";
+    let allegatoPath = togliAllegato ? "" : (esistente?.allegatoPath ?? "");
+    let allegatoNome = togliAllegato ? "" : (esistente?.allegatoNome ?? "");
+    if (allegato) {
+      setBusy(true);
+      try {
+        allegatoPath = await saveVehicleFile(allegato, "movimenti");
+        allegatoNome = allegato.name;
+      } catch (e) {
+        setBusy(false);
+        toast(e instanceof Error ? e.message : "Allegato non salvato, riprova");
+        return;
+      }
+    }
+    // Il file sostituito o tolto non serve più.
+    if (esistente?.allegatoPath && esistente.allegatoPath !== allegatoPath) void deleteVehicleFile(esistente.allegatoPath);
     const dati = {
       data: f.data,
       tipo: f.tipo,
@@ -93,7 +138,9 @@ export default function MovimentoDrawer({
       numeroDocumento: f.numeroDocumento.trim(),
       statoPagamento: f.statoPagamento,
       dataScadenza: saldato ? "" : f.dataScadenza,
-      dataSaldo: saldato ? esistente?.dataSaldo || f.data : "",
+      dataSaldo: saldato ? f.dataSaldo || f.data : "",
+      allegatoPath,
+      allegatoNome,
     };
     if (esistente) {
       updateMovimento(esistente.id, dati);
@@ -107,10 +154,18 @@ export default function MovimentoDrawer({
 
   return (
     <Drawer
-      title={esistente ? "Modifica movimento" : "Nuovo movimento"}
-      subtitle={esistente ? undefined : "Un'entrata o un'uscita, collegata a un'auto o generale"}
-      submitLabel={esistente ? "Salva modifiche" : "Registra"}
-      onSubmit={submit}
+      title={esistente ? "Modifica movimento" : duplicaDa ? "Duplica movimento" : "Nuovo movimento"}
+      subtitle={
+        esistente
+          ? undefined
+          : duplicaDa
+            ? "Copia del movimento scelto: controlla data e importo"
+            : "Un'entrata o un'uscita, collegata a un'auto o generale"
+      }
+      submitLabel={busy ? "Salvo…" : esistente ? "Salva modifiche" : "Registra"}
+      submitDisabled={busy}
+      busy={busy}
+      onSubmit={() => void submit()}
       onClose={onClose}
       width="max-w-xl"
     >
@@ -171,13 +226,21 @@ export default function MovimentoDrawer({
         <Field label="Totale">
           <div className={`${inputCls} flex items-center font-semibold tabular-nums text-white`}>{euro(imponibile + iva)}</div>
         </Field>
-        <div className="sm:col-span-3">
+        <div className="flex flex-wrap gap-2 sm:col-span-3">
           <button
             type="button"
             className={btnSecondary}
             onClick={() => set("iva", String(Math.round(imponibile * impostazioni.aliquotaIva * 100) / 100))}
           >
             Calcola IVA al {Math.round(impostazioni.aliquotaIva * 10000) / 100}%
+          </button>
+          <button
+            type="button"
+            className={btnSecondary}
+            title="Scrivi in Imponibile il totale IVA inclusa e premi qui"
+            onClick={scorpora}
+          >
+            Ho il totale: scorpora l&apos;IVA
           </button>
         </div>
         <Field label="Pagamento">
@@ -202,9 +265,46 @@ export default function MovimentoDrawer({
         <Field label="Stato">
           <SelectField value={f.statoPagamento} options={["Saldato", "Da saldare"] as StatoPagamento[]} onChange={(v) => set("statoPagamento", v)} />
         </Field>
-        {f.statoPagamento === "Da saldare" && (
+        {f.statoPagamento === "Da saldare" ? (
           <Field label="Scadenza">
             <input required type="date" value={f.dataScadenza} onChange={(e) => set("dataScadenza", e.target.value)} className={inputCls} />
+          </Field>
+        ) : (
+          <Field label="Data del saldo" hint="Vuota = la data del movimento.">
+            <input type="date" value={f.dataSaldo} onChange={(e) => set("dataSaldo", e.target.value)} className={inputCls} />
+          </Field>
+        )}
+      </Section>
+
+      <Section title="Allegato">
+        {esistente?.allegatoPath && !togliAllegato && !allegato ? (
+          <div className="flex flex-wrap items-center gap-2 rounded-lg border border-adm-line bg-adm-bg px-3.5 py-2.5 text-sm">
+            <Paperclip className="size-4 text-adm-muted" />
+            <span className="min-w-0 flex-1 truncate text-slate-200">{esistente.allegatoNome || "Documento"}</span>
+            <button type="button" className={btnSecondary} onClick={() => void apriAllegato(esistente.allegatoPath)}>
+              Apri
+            </button>
+            <button type="button" className={btnSecondary} onClick={() => setTogliAllegato(true)}>
+              Togli
+            </button>
+          </div>
+        ) : (
+          <Field label="Fattura o ricevuta (PDF o foto, facoltativa)">
+            <input
+              type="file"
+              accept={ACCEPT_ATTR}
+              onChange={(e) => {
+                const file = e.target.files?.[0] ?? null;
+                const errore = file ? validateVehicleFile(file) : null;
+                if (errore) {
+                  toast(errore);
+                  e.target.value = "";
+                  return;
+                }
+                setAllegato(file);
+              }}
+              className={`${inputCls} file:mr-3 file:rounded-md file:border-0 file:bg-white/10 file:px-2.5 file:py-1 file:text-sm file:text-slate-200`}
+            />
           </Field>
         )}
       </Section>

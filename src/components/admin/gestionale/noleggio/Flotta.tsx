@@ -180,8 +180,7 @@ export default function Flotta() {
                     danger: true,
                     confirm: "Conferma: elimina anche le prenotazioni",
                     onSelect: () => {
-                      deleteRentVeicolo(v.id);
-                      toast(`${nomeRentVeicolo(v)} eliminata dalla flotta`);
+                      toast(`${nomeRentVeicolo(v)} eliminata dalla flotta`, { label: "Annulla", onClick: deleteRentVeicolo(v.id) });
                     },
                   },
                 ]}

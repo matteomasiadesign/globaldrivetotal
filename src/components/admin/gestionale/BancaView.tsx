@@ -1,7 +1,13 @@
 "use client";
 
 import React, { useState } from "react";
-import { Landmark, Search } from "lucide-react";
+import { Landmark, Search, Upload } from "lucide-react";
+import { foglioBanca } from "@/lib/export/gestionale";
+import { nomeFile } from "@/lib/export/scrivi";
+import ExportMenu, { useContestoExport } from "../ui/ExportMenu";
+import ImportEstratto from "./import/ImportEstratto";
+import { btnPrimary } from "../ui/styles";
+import { useAdmin } from "@/context/AdminContext";
 import { useGestionale } from "@/context/GestionaleContext";
 import { formatDate } from "@/lib/admin/dates";
 import { euro, nomeVeicolo } from "@/lib/gestionale/calc";
@@ -11,19 +17,35 @@ import { TextField } from "../ui/Inputs";
 import { EmptyState, PageHeader } from "../ui/Layout";
 import { inputCls, rowDivider } from "../ui/styles";
 
-// Riconciliazione bancaria: i movimenti pagati da conto o con bonifico si spuntano
-// quando si ritrovano sull'estratto conto, con il riferimento della banca.
+// Riconciliazione bancaria: i movimenti pagati con un metodo bancario (Impostazioni →
+// Banca) si spuntano quando si ritrovano sull'estratto conto, con il riferimento della banca.
 export default function BancaView() {
-  const { movimenti, veicoli, updateMovimento } = useGestionale();
+  const { today } = useAdmin();
+  const { movimenti, veicoli, impostazioni, updateMovimento } = useGestionale();
+  const ctx = useContestoExport();
   const [soloDaFare, setSoloDaFare] = useState(true);
   const [query, setQuery] = useState("");
+  const [importa, setImporta] = useState(false);
 
   const nomeAuto = (id: string | null) => {
     const v = veicoli.find((x) => x.id === id);
     return v ? nomeVeicolo(v) : "Generale";
   };
 
-  const bancari = movimenti.filter((m) => m.pagamento === "CONTO" || m.pagamento === "Bonifico");
+  const bancari = movimenti.filter((m) => impostazioni.pagamentiBanca.includes(m.pagamento));
+  const metodi = impostazioni.pagamentiBanca
+    .map((p) => (p === "CASH" ? "Contanti" : p === "CONTO" ? "Conto" : p))
+    .map((p) => `«${p}»`)
+    .join(", ");
+
+  // Un movimento ritrovato sull'estratto conto è anche pagato: se era "Da saldare" si salda.
+  const riconcilia = (m: (typeof movimenti)[number], riconciliato: boolean) =>
+    updateMovimento(
+      m.id,
+      riconciliato && m.statoPagamento === "Da saldare"
+        ? { riconciliato, statoPagamento: "Saldato", dataSaldo: m.dataSaldo || today }
+        : { riconciliato }
+    );
   const daRiconciliare = bancari.filter((m) => !m.riconciliato);
   const q = query.trim().toLowerCase();
   const visibili = bancari
@@ -35,8 +57,25 @@ export default function BancaView() {
     <>
       <PageHeader
         title="Banca"
-        description="Riconciliazione: spunta i movimenti che ritrovi sull'estratto conto."
+        description="Riconciliazione: spunta i movimenti che ritrovi sull'estratto conto, o importa l'estratto e abbina in automatico."
+        actions={
+          <>
+            <ExportMenu
+              nome={nomeFile("Banca", today)}
+              fogli={() => [
+                foglioBanca(visibili, ctx, [
+                  soloDaFare ? `Movimenti bancari da riconciliare al ${formatDate(today)}` : `Movimenti bancari al ${formatDate(today)}`,
+                ]),
+              ]}
+            />
+            <button type="button" onClick={() => setImporta(true)} className={btnPrimary}>
+              <Upload className="size-4" />
+              Importa estratto conto
+            </button>
+          </>
+        }
       />
+      {importa && <ImportEstratto onClose={() => setImporta(false)} />}
 
       <div className="mb-4 grid gap-3 sm:grid-cols-2">
         <Stat label="Movimenti bancari" value={bancari.length} />
@@ -75,7 +114,11 @@ export default function BancaView() {
         <EmptyState
           icon={Landmark}
           title={soloDaFare ? "Tutto riconciliato" : "Nessun movimento bancario"}
-          description="Qui compaiono i movimenti pagati con «Conto» o «Bonifico»."
+          description={
+            metodi
+              ? `Qui compaiono i movimenti pagati con ${metodi} (si cambia da Impostazioni).`
+              : "Nessun metodo di pagamento è indicato come bancario: sceglili in Impostazioni."
+          }
         />
       ) : (
         <div className={`rounded-xl border border-adm-line bg-adm-surface ${rowDivider}`}>
@@ -100,8 +143,14 @@ export default function BancaView() {
               <Switch
                 compact
                 checked={m.riconciliato}
-                onChange={(riconciliato) => updateMovimento(m.id, { riconciliato })}
-                label={m.riconciliato ? "Riconciliato: clic per togliere" : "Segna come riconciliato"}
+                onChange={(riconciliato) => riconcilia(m, riconciliato)}
+                label={
+                  m.riconciliato
+                    ? "Riconciliato: clic per togliere"
+                    : m.statoPagamento === "Da saldare"
+                      ? "Segna come riconciliato (diventa anche saldato)"
+                      : "Segna come riconciliato"
+                }
               />
             </div>
           ))}

@@ -185,8 +185,7 @@ export default function Preventivi() {
                     danger: true,
                     confirm: "Conferma: elimina",
                     onSelect: () => {
-                      deletePreventivo(p.id);
-                      toast("Preventivo eliminato");
+                      toast("Preventivo eliminato", { label: "Annulla", onClick: deletePreventivo(p.id) });
                     },
                   },
                 ]}

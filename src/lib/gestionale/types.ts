@@ -49,6 +49,8 @@ export const CATEGORIE_MOVIMENTO = [
   "Altro",
   "Vendita veicolo",
   "Intermediazione conto vendita",
+  "Noleggio",
+  "Altre entrate",
 ];
 export const ALIMENTAZIONI = ["Benzina", "Diesel", "GPL", "Metano", "Ibrida", "Elettrica"];
 
@@ -79,6 +81,9 @@ export interface Veicolo {
   /** Frazione (0.07 = 7%), usata solo dal conto vendita. */
   commissionePercentuale: number;
   numeroFattura: string;
+  /** Contratto di vendita: numero progressivo nell'anno di vendita (null finché non c'è). */
+  numeroContratto: number | null;
+  annoContratto: number | null;
   note: string;
 }
 
@@ -105,6 +110,9 @@ export interface Movimento {
   numeroDocumento: string;
   riconciliato: boolean;
   riferimentoEstratto: string;
+  /** Fattura o ricevuta allegata (percorso nell'archivio dei file, vedi lib/storage/vehicleFiles). */
+  allegatoPath: string;
+  allegatoNome: string;
 }
 
 export type TipoContatto = "Cliente" | "Fornitore" | "Entrambi";
@@ -136,6 +144,16 @@ export interface Impostazioni {
   sogliaGiorniStock: number;
   pecAzienda: string;
   prossimoNumeroContratto: number;
+  /**
+   * Regime del margine. true = margine = vendita − acquisto − spese di riparazione e accessorie
+   * dell'auto (art. 36 DL 41/1995, metodo analitico), e l'IVA di quelle spese non si detrae.
+   * false = margine = vendita − acquisto.
+   */
+  margineConSpese: boolean;
+  /** Metodi di pagamento che passano dal conto corrente: sono quelli da riconciliare in Banca. */
+  pagamentiBanca: Pagamento[];
+  /** Le tariffe del noleggio comprendono l'IVA (l'incasso si scorpora); false = IVA in più. */
+  noleggioIvaInclusa: boolean;
 }
 
 export type AzioneStorico = "Creato" | "Modificato" | "Eliminato";

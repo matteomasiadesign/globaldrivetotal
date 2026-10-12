@@ -57,7 +57,7 @@ function eur(n: number | null | undefined) {
 export async function generaContrattoVenditaPDF(
   veicolo: Veicolo, veicoloInfo: { marca: string; modello: string; targa: string },
   azienda: DatiAzienda, acquirente: DatiAcquirente, contratto: DatiContratto
-) {
+): Promise<{ file: File }> {
   const doc = new jsPDF({ unit: "mm", format: "a4" });
   const pageW = 210, pageH = 297, marginX = 15;
   let y = 0;
@@ -244,4 +244,6 @@ export async function generaContrattoVenditaPDF(
 
   const nomeFile = `Contratto_${([veicoloInfo.marca, veicoloInfo.modello].filter(Boolean).join("_") || "auto").replace(/\s+/g, "_")}_${numeroContratto.replace(/[\s/]/g, "-")}.pdf`;
   doc.save(nomeFile);
+  // Lo stesso PDF va anche nel dossier dell'auto, per riaprirlo senza rigenerarlo.
+  return { file: new File([doc.output("blob")], nomeFile, { type: "application/pdf" }) };
 }

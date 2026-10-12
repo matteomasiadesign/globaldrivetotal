@@ -3,7 +3,12 @@
 import React, { useState } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { Calculator, CalendarPlus, Car as CarIcon, FolderOpen, Pencil, Plus, Receipt, Search, Star, Trash2 } from "lucide-react";
+import { Calculator, CalendarPlus, Car as CarIcon, FolderOpen, Pencil, Plus, Receipt, Search, Star, Trash2, Upload } from "lucide-react";
+import { foglioContoEconomico, foglioContratti, foglioRegistroUsati } from "@/lib/export/gestionale";
+import { nomeFile } from "@/lib/export/scrivi";
+import { foglio } from "@/lib/export/types";
+import { ImportaVeicoli } from "../gestionale/import/Importa";
+import ExportMenu, { useContestoExport } from "../ui/ExportMenu";
 import Link from "next/link";
 import { useAdmin } from "@/context/AdminContext";
 import { useCars } from "@/context/CarContext";
@@ -52,7 +57,7 @@ function CarRow({ car }: { car: Car }) {
   const router = useRouter();
   const toast = useToast();
   const { toggleFeatured, deleteCar } = useCars();
-  const { deleteDocumentsOfCar, reassignDocuments, today } = useAdmin();
+  const { deleteDocumentsOfCar, reassignDocuments, today, isAdmin } = useAdmin();
   const {
     veicoli,
     movimenti,
@@ -94,7 +99,7 @@ function CarRow({ car }: { car: Car }) {
 
       <div>
         <p className="font-medium tabular-nums text-white">{eur(car.price)}</p>
-        {costo > 0 && (
+        {isAdmin && costo > 0 && (
           <p className="text-xs tabular-nums text-adm-muted">
             costo {euro(costo)}
             {conti?.risultatoDopoIva != null && (
@@ -160,16 +165,21 @@ function CarRow({ car }: { car: Car }) {
           label={`Azioni per ${name}`}
           items={[
             { label: "Modifica scheda", icon: Pencil, onSelect: () => openCar(car.id) },
-            {
-              label: "Scheda economica e contratto",
-              icon: Calculator,
-              onSelect: () => router.push(`/admin/auto/${schedaDellAuto(car).id}`),
-            },
-            {
-              label: "Movimenti",
-              icon: Receipt,
-              onSelect: () => router.push(`/admin/movimenti?auto=${schedaDellAuto(car).id}`),
-            },
+            // Conti e contratto: solo per l'admin (l'operatore non vede prezzi d'acquisto e margini).
+            ...(isAdmin
+              ? [
+                  {
+                    label: "Scheda economica e contratto",
+                    icon: Calculator,
+                    onSelect: () => router.push(`/admin/auto/${schedaDellAuto(car).id}`),
+                  },
+                  {
+                    label: "Movimenti",
+                    icon: Receipt,
+                    onSelect: () => router.push(`/admin/movimenti?auto=${schedaDellAuto(car).id}`),
+                  },
+                ]
+              : []),
             {
               label: "Documenti",
               icon: FolderOpen,
@@ -211,9 +221,12 @@ export default function CarsView({ initialFilter }: { initialFilter?: CarFilter 
   const router = useRouter();
   const { cars } = useCars();
   const { veicoli, addVeicolo } = useGestionale();
+  const { isAdmin } = useAdmin();
   const { openCar } = useEditors();
   const [filter, setFilter] = useUrlState<CarFilter>("filtro", initialFilter ?? "tutte");
   const [query, setQuery] = useState("");
+  const [importa, setImporta] = useState(false);
+  const ctx = useContestoExport();
 
   const count = (f: CarFilter) => cars.filter((c) => matches(c, f)).length;
   const tabs: TabOption<CarFilter>[] = [
@@ -245,15 +258,59 @@ export default function CarsView({ initialFilter }: { initialFilter?: CarFilter 
         description="Cosa è online sul sito, a che prezzo e in che stato."
         actions={
           <>
-            <button
-              type="button"
-              onClick={() => router.push(`/admin/auto/${addVeicolo({ stato: "Acquistata" }).id}`)}
-              className={btnSecondary}
-            >
-              <Calculator className="size-4" />
-              <span className="hidden sm:inline">Auto fuori catalogo</span>
-              <span className="sm:hidden">Fuori catalogo</span>
-            </button>
+            <ExportMenu
+              nome={nomeFile("Parco_auto", filter === "tutte" ? undefined : filter)}
+              fogli={() => {
+                const catalogo = foglio<Car>({
+                  nome: "Catalogo",
+                  righe: visible,
+                  colonne: [
+                    { titolo: "Marca", valore: (c) => c.brand },
+                    { titolo: "Modello", valore: (c) => c.model },
+                    { titolo: "Versione", valore: (c) => c.version, larghezza: 22 },
+                    { titolo: "Anno", formato: "intero", valore: (c) => c.year },
+                    { titolo: "Km", formato: "intero", valore: (c) => c.mileage },
+                    { titolo: "Alimentazione", valore: (c) => c.fuel },
+                    { titolo: "Cambio", valore: (c) => c.transmission },
+                    { titolo: "Prezzo sul sito", formato: "euro", valore: (c) => c.price, totale: true, larghezza: 14 },
+                    { titolo: "Stato", valore: (c) => c.status },
+                    { titolo: "Visibile sul sito", formato: "sino", valore: (c) => !c.hidden },
+                    { titolo: "In vetrina", formato: "sino", valore: (c) => Boolean(c.featured) && !c.hidden },
+                    { titolo: "Targa", valore: (c) => veicoli.find((v) => v.carId === c.id)?.targa ?? "" },
+                  ],
+                });
+                if (!isAdmin) return [catalogo];
+                // Conti: le schede delle auto mostrate più quelle fuori catalogo.
+                const schede = [
+                  ...visible.map((c) => veicoli.find((v) => v.carId === c.id)).filter((v): v is NonNullable<typeof v> => Boolean(v)),
+                  ...fuoriCatalogo,
+                ];
+                const anno = String(ctx.impostazioni.annoGestione);
+                return [
+                  foglioContoEconomico(schede, ctx, ["Conto economico per auto"]),
+                  catalogo,
+                  foglioRegistroUsati(anno, ctx),
+                  foglioContratti(anno, ctx),
+                ];
+              }}
+            />
+            {isAdmin && (
+              <button type="button" onClick={() => setImporta(true)} className={btnSecondary}>
+                <Upload className="size-4" />
+                <span className="hidden sm:inline">Importa</span>
+              </button>
+            )}
+            {isAdmin && (
+              <button
+                type="button"
+                onClick={() => router.push(`/admin/auto/${addVeicolo({ stato: "Acquistata" }).id}`)}
+                className={btnSecondary}
+              >
+                <Calculator className="size-4" />
+                <span className="hidden sm:inline">Auto fuori catalogo</span>
+                <span className="sm:hidden">Fuori catalogo</span>
+              </button>
+            )}
             <button type="button" onClick={() => openCar()} className={btnPrimary}>
               <Plus className="size-4" />
               Aggiungi auto
@@ -261,6 +318,7 @@ export default function CarsView({ initialFilter }: { initialFilter?: CarFilter 
           </>
         }
       />
+      {importa && <ImportaVeicoli onClose={() => setImporta(false)} />}
 
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <FilterTabs tabs={tabs} value={filter} onChange={setFilter} label="Filtra auto" />
@@ -314,7 +372,7 @@ export default function CarsView({ initialFilter }: { initialFilter?: CarFilter 
         </div>
       )}
 
-      {fuoriCatalogo.length > 0 && (
+      {isAdmin && fuoriCatalogo.length > 0 && (
         <div className="mt-8">
           <Panel title={`Fuori catalogo (${fuoriCatalogo.length})`}>
             <div className={rowDivider}>

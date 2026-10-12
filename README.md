@@ -21,11 +21,12 @@ npm run lint
 | --- | --- |
 | Sito pubblico (home, catalogo, servizi) | Funziona, ma legge le auto dal `localStorage` del browser: finché non c'è il database il catalogo è vuoto per i visitatori |
 | Parco auto in admin | **Finto**: salvato in `localStorage` del browser (`CarContext`). Le modifiche non arrivano ai clienti |
-| Agenda, documenti e richieste in admin | **In `localStorage`**, partono vuoti (stato in `src/context/AdminContext.tsx`) |
+| Agenda e documenti in admin | **In `localStorage`**, partono vuoti (stato in `src/context/AdminContext.tsx`) |
 | Gestionale (conti, IVA, contatti, noleggio, contratti) | **Funziona ma è in `localStorage`**, parte vuoto: stato in `src/context/GestionaleContext.tsx`. Nessun dato è condiviso tra browser |
 | Login admin | **Reale** (Supabase Auth, email + password): unico login, vale per tutto `/admin` compreso il gestionale. Account creati solo dalla dashboard Supabase. I dati dietro restano nel `localStorage` |
-| **Lead dal sito** | **Reali** (vedi sotto): salvati dal server |
-| Pagina "Richieste" in admin | **Vuota**: non legge ancora i lead salvati dal server |
+| **Lead dal sito** | **Reali** (vedi sotto): il server li scrive nella tabella `leads` di Supabase (serve `SUPABASE_SERVICE_ROLE_KEY`) |
+| Pagina "Richieste" in admin | **Reale**: legge e aggiorna la tabella `leads` (ogni minuto e con «Aggiorna»). Il collegamento richiesta → contatto resta nel browser finché l'anagrafica non migra |
+| Ruoli | `admin` vede tutto; `operatore` (da `staff_profiles.role`) non vede conti, IVA, analisi, impostazioni, storico, schede economiche e contratti (`src/lib/admin/access.ts`) |
 
 | Casper | Risposte locali simulate; Gemini si attiva solo con `GEMINI_API_KEY` |
 
@@ -83,16 +84,15 @@ Come funziona:
 - **Il telefono è l'unico campo obbligatorio**: i form commissione e conto vendita non chiedono il nome.
 - **Il salvataggio non blocca WhatsApp**: nei form che già aprivano WhatsApp (contatti, commissione, conto vendita) il lead viene salvato per primo, ma se fallisce WhatsApp si apre comunque. Nel form test drive, se fallisce, l'utente vede un errore (prima mostrava un successo finto senza inviare nulla).
 - **Protezioni** in `src/app/api/leads/route.ts`: controllo dell'origine, rate limit (5 richieste / 10 min per IP), tetto di 10.000 caratteri, validazione di tipo/telefono/email, campo honeypot `website` (i bot che lo compilano ricevono "ok" ma non viene salvato nulla).
-- **Persistenza provvisoria**: file `.data/leads.jsonl`, un lead per riga, ignorato da git. Funziona in locale o su un server con disco scrivibile, **non su Vercel**.
-- **Come passare al database**: scrivere una nuova implementazione di `LeadRepository` in `src/lib/leads/repository.ts` (oggi solo `create`; arriveranno `list` e `updateStatus`) e cambiare l'export `leadRepository`. Route, validazione e form non cambiano.
+- **Persistenza**: tabella `leads` di Supabase, scritta solo dal server con `SUPABASE_SERVICE_ROLE_KEY` (nessuna policy permette al pubblico di inserire). Senza la chiave si ripiega sul file `.data/leads.jsonl` (solo sviluppo: l'admin non lo legge e su Vercel non funziona). Conversione riga ⇄ tipo in `src/lib/leads/rows.ts`: finché il catalogo è nel browser l'id dell'auto viaggia in `details._carId`.
 
-File: `src/types/lead.ts` · `src/lib/leads/{validate,repository,rateLimit,client}.ts` · `src/components/ui/Honeypot.tsx` · `src/config/site.ts`.
+File: `src/types/lead.ts` · `src/lib/leads/{validate,repository,rows,rateLimit,client}.ts` · `src/components/ui/Honeypot.tsx` · `src/config/site.ts`.
 
 ### Ancora da fare sui lead
 
 - [ ] **Consenso privacy**: i form raccolgono nome e telefono ma non hanno checkbox né link all'informativa. Serve prima la pagina privacy (testo legale da definire con il titolare), poi la checkbox su tutti i form e il campo `privacy_accepted_at` in tabella. **Da chiudere prima della messa online.**
 - [ ] **Notifica allo staff** quando arriva un lead (email o WhatsApp). Serve scegliere il provider (es. Resend) e un indirizzo mittente.
-- [ ] **Tab Lead dell'admin** deve leggere i lead reali (`list`, `updateStatus`). Richiede l'autenticazione: non va esposto nessun `GET /api/leads` finché `/admin` non è protetto.
+- [x] **Pagina Richieste dell'admin** legge e aggiorna i lead reali (direttamente da Supabase, con le policy RLS dello staff).
 - [ ] **Rate limit condiviso** quando ci sono più istanze o serverless (oggi è in memoria, per singola istanza). Valutare anche Cloudflare Turnstile se arriva spam.
 - [ ] **Anti-doppio invio e deduplica** (stesso telefono più volte in poco tempo).
 
@@ -103,7 +103,8 @@ Il file `.env.local` non va in git. Crearlo in locale, e **aggiungere un `.env.e
 | Variabile | Stato | A cosa serve |
 | --- | --- | --- |
 | `GEMINI_API_KEY` | opzionale | Attiva le risposte AI di Casper (`/api/casper`). Senza, Casper usa il motore locale |
-| `LEADS_FILE_PATH` | opzionale | Percorso del file dei lead. Default `.data/leads.jsonl` |
+| `SUPABASE_SERVICE_ROLE_KEY` | **obbligatoria in produzione** | Chiave `service_role` (Project Settings → API). **Solo sul server**, mai con prefisso `NEXT_PUBLIC_`. Senza, le richieste dal sito non arrivano nell'admin |
+| `LEADS_FILE_PATH` | opzionale | Percorso del file dei lead quando manca la chiave. Default `.data/leads.jsonl` |
 | `NEXT_PUBLIC_SUPABASE_URL` | **obbligatoria** | Progetto Supabase (Project Settings → API). Senza, il login admin non funziona |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | **obbligatoria** | Chiave pubblica (anon) dello stesso progetto. Va impostata anche sull'hosting prima del build |
 | Chiave del provider email | prevista | Notifiche lead |
@@ -112,12 +113,14 @@ Il file `.env.local` non va in git. Crearlo in locale, e **aggiungere un `.env.e
 
 Lo schema è `supabase/schema.sql`: sito, gestionale, noleggio, ruoli, storage, permessi (RLS) e trigger. Ha già assorbito lo schema del vecchio gestionale. Si esegue una volta nell'SQL Editor di Supabase, sia su un progetto vuoto sia su quello che ha ancora le tabelle del vecchio gestionale (le sostituisce, gli utenti restano). Istruzioni e regole di accesso sono in testa al file. Non contiene dati di prova.
 
+Le modifiche successive al database già creato stanno in `supabase/migrations/` (da eseguire una volta, in ordine, nell'SQL Editor); `schema.sql` le contiene già, quindi un progetto nuovo usa solo quello. `20261012_admin_fase1.sql`: impostazioni del regime del margine e dei metodi bancari, auto vendute archiviate che restano vendute, contratto ristampato con lo stesso numero, scadenza dell'incasso, tipo di appuntamento «Valutazione auto».
+
 ## Roadmap
 
 Ordine concordato. Il punto 3 (lead) è fatto, con i residui elencati sopra.
 
 1. [ ] **Database e persistenza**: applicare lo schema, spostare auto/agenda/documenti e il gestionale (`src/context/GestionaleContext.tsx`: veicoli, movimenti, contatti, impostazioni, noleggio, storico) da `localStorage`; il gestionale si porta cambiando solo lettura iniziale e salvataggio, tabelle già pronte in `supabase/schema.sql`, foto su bucket Supabase (oggi l'admin le carica dal PC, le comprime nel browser e le tiene come data URL nel `localStorage`: riscrivere solo `uploadCarPhoto`/`deleteCarPhoto` in `src/lib/storage/carPhotos.ts` e aggiungere l'host del bucket in `images.remotePatterns` di `next.config.ts`).
-2. [ ] **Autenticazione admin**: login reale su Supabase fatto (`src/lib/supabase/client.ts`, `AdminContext`). Restano: protezione lato server quando i dati passeranno al database (policy RLS, ed eventualmente `proxy.ts`), ruoli admin/operatore, recupero password. In Supabase la registrazione pubblica va tenuta **disattivata** (la chiave anon è pubblica).
+2. [ ] **Autenticazione admin**: login reale su Supabase fatto (`src/lib/supabase/client.ts`, `AdminContext`). Restano: protezione lato server quando i dati passeranno al database (policy RLS, ed eventualmente `proxy.ts`), recupero password, gestione degli utenti dall'admin. I ruoli admin/operatore sono letti da `staff_profiles` e nascondono le sezioni dei conti. In Supabase la registrazione pubblica va tenuta **disattivata** (la chiave anon è pubblica).
 3. [x] **Lead dal sito** (form + Casper): vedi sezione dedicata.
 4. [ ] **Pagine auto e SEO**: `/catalogo/[slug]` renderizzata lato server (oggi catalogo solo client, nessun URL condivisibile), `robots`, `sitemap`, Open Graph, dati strutturati (`AutoDealer`, `Vehicle`), `not-found`, `error`, `loading`.
 5. [ ] **Privacy e conformità**: informativa privacy, cookie policy/banner se si usano strumenti di tracciamento, dati societari (P.IVA) in footer.

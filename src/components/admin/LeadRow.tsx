@@ -56,11 +56,22 @@ export default function LeadRow({
     (a) => a.leadId === lead.id && isOpenAppointment(a.status)
   );
 
-  // Chi scrive va in anagrafica con un clic, a meno che il numero ci sia già.
+  // Chi scrive va in anagrafica con un clic; se c'è già (collegato o con lo stesso numero) si apre.
   const cifre = (p: string) => p.replace(/\D/g, "");
-  const giaInAnagrafica = contatti.some((c) => cifre(lead.phone) !== "" && cifre(c.telefono) === cifre(lead.phone));
-  const salvaInAnagrafica: MenuItem[] = giaInAnagrafica
-    ? []
+  const contatto =
+    contatti.find((c) => c.id === lead.contattoId) ??
+    contatti.find((c) => cifre(lead.phone) !== "" && cifre(c.telefono) === cifre(lead.phone));
+  const salvaInAnagrafica: MenuItem[] = contatto
+    ? [
+        {
+          label: "Apri contatto",
+          icon: UserPlus,
+          onSelect: () => {
+            if (lead.contattoId !== contatto.id) updateLead(lead.id, { contattoId: contatto.id });
+            openContatto({ contattoId: contatto.id });
+          },
+        },
+      ]
     : [
         {
           label: "Salva in anagrafica",

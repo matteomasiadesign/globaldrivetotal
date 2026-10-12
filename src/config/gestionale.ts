@@ -1,8 +1,8 @@
 import type { Impostazioni } from "@/lib/gestionale/types";
 
 // Parametri di calcolo di partenza. Dopo la prima modifica da /admin/impostazioni
-// valgono quelli salvati. Aliquota, maggiorazione e regime del margine vanno
-// confermati con il commercialista. I dati dell'azienda (ragione sociale, P.IVA,
+// valgono quelli salvati. Aliquota, maggiorazione, regime del margine (con o senza
+// spese) e metodi di pagamento bancari vanno confermati con il commercialista. I dati dell'azienda (ragione sociale, P.IVA,
 // sede, contatti) non stanno qui: si leggono da /admin/sito.
 export const defaultImpostazioni: Impostazioni = {
   annoGestione: new Date().getFullYear(),
@@ -13,4 +13,7 @@ export const defaultImpostazioni: Impostazioni = {
   sogliaGiorniStock: 60,
   pecAzienda: "",
   prossimoNumeroContratto: 1,
+  margineConSpese: true,
+  pagamentiBanca: ["CONTO", "Bonifico", "Carta"],
+  noleggioIvaInclusa: true,
 };

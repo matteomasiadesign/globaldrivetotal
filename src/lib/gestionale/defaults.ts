@@ -27,6 +27,8 @@ export const veicoloVuoto = (impostazioni: Impostazioni): Omit<Veicolo, "id"> =>
   prezzoVendita: null,
   commissionePercentuale: impostazioni.commissionePredefinita,
   numeroFattura: "",
+  numeroContratto: null,
+  annoContratto: null,
   note: "",
 });
 
@@ -49,6 +51,8 @@ export const movimentoVuoto = (oggi: string): Omit<Movimento, "id" | "totale"> =
   numeroDocumento: "",
   riconciliato: false,
   riferimentoEstratto: "",
+  allegatoPath: "",
+  allegatoNome: "",
 });
 
 export const contattoVuoto = (): Omit<Contatto, "id"> => ({

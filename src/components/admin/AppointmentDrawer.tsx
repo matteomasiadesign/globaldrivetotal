@@ -3,9 +3,9 @@
 import React, { useState } from "react";
 import { useCars } from "@/context/CarContext";
 import { useAdmin, type NewAppointment } from "@/context/AdminContext";
-import { APPOINTMENT_TYPES, eur } from "@/lib/admin/constants";
+import { APPOINTMENT_STATUSES, APPOINTMENT_TYPES, eur, isOpenAppointment } from "@/lib/admin/constants";
 import { formatLongDate, fromDateStr } from "@/lib/admin/dates";
-import type { Appointment, AppointmentType } from "@/types/admin";
+import type { Appointment, AppointmentStatus, AppointmentType } from "@/types/admin";
 import Drawer from "./ui/Drawer";
 import { Field, Section } from "./ui/Field";
 import { inputCls, textareaCls } from "./ui/styles";
@@ -49,6 +49,8 @@ export default function AppointmentDrawer({
   const [location, setLocation] = useState(initial?.location ?? DEFAULT_LOCATION);
   const [locationTouched, setLocationTouched] = useState(Boolean(initial?.location));
   const [notes, setNotes] = useState(initial?.notes ?? "");
+  // "Da confermare" quando l'orario va ancora concordato col cliente: compare in Oggi e in Agenda.
+  const [status, setStatus] = useState<AppointmentStatus>(appointment?.status ?? prefill?.status ?? "Confermato");
 
   function pickCar(id: string) {
     setCarId(id);
@@ -70,7 +72,7 @@ export default function AppointmentDrawer({
       carId: carId || undefined,
       carName: car ? `${car.brand} ${car.model}` : initial?.carName,
       location: location.trim() || DEFAULT_LOCATION,
-      status: appointment?.status ?? "Confermato",
+      status,
       notes: notes.trim() || undefined,
       leadId: appointment?.leadId ?? leadId,
     };
@@ -168,9 +170,23 @@ export default function AppointmentDrawer({
             onChange={(e) => setType(e.target.value as AppointmentType)}
             className={inputCls}
           >
-            {APPOINTMENT_TYPES.map((t) => (
+            {/* Un appuntamento salvato con un tipo non più proposto lo tiene finché non lo si cambia. */}
+            {(APPOINTMENT_TYPES.includes(type) ? APPOINTMENT_TYPES : [type, ...APPOINTMENT_TYPES]).map((t) => (
               <option key={t} value={t}>
                 {t}
+              </option>
+            ))}
+          </select>
+        </Field>
+        <Field label="Stato">
+          <select
+            value={status}
+            onChange={(e) => setStatus(e.target.value as AppointmentStatus)}
+            className={inputCls}
+          >
+            {APPOINTMENT_STATUSES.filter((s) => isEdit || isOpenAppointment(s)).map((s) => (
+              <option key={s} value={s}>
+                {s === "In Attesa" ? "Da confermare" : s}
               </option>
             ))}
           </select>

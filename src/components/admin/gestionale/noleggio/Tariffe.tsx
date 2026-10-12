@@ -88,8 +88,7 @@ export default function Tariffe() {
                       danger: true,
                       confirm: "Conferma: elimina",
                       onSelect: () => {
-                        deleteTariffa(t.id);
-                        toast("Tariffa eliminata");
+                        toast("Tariffa eliminata", { label: "Annulla", onClick: deleteTariffa(t.id) });
                       },
                     },
                   ]}

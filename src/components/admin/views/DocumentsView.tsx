@@ -84,7 +84,8 @@ function DocRow({ doc, highlight = false }: { doc: VehicleDocument; highlight?: 
             icon: Trash2,
             danger: true,
             confirm: "Conferma rimozione",
-            onSelect: () => deleteDocument(doc.id),
+            onSelect: () =>
+              toast(`«${doc.title}» rimosso dal dossier`, { label: "Annulla", onClick: deleteDocument(doc.id) }),
           },
         ]}
       />
@@ -102,7 +103,8 @@ function Dossier({
   /** Testo cercato: i documenti che lo contengono vengono evidenziati. */
   query: string;
   onLink: (category?: DocumentCategory) => void;
-  onContract: () => void;
+  /** Assente per l'operatore: il contratto è solo dell'admin. */
+  onContract?: () => void;
 }) {
   const { documents } = useAdmin();
   const dossier = getDossier(car.id, documents);
@@ -126,10 +128,12 @@ function Dossier({
             <Link2 className="size-4" />
             Collega documento
           </button>
-          <button type="button" onClick={onContract} className={btnPrimary}>
-            <FilePlus2 className="size-4" />
-            Genera contratto
-          </button>
+          {onContract && (
+            <button type="button" onClick={onContract} className={btnPrimary}>
+              <FilePlus2 className="size-4" />
+              Genera contratto
+            </button>
+          )}
         </div>
       </div>
 
@@ -215,7 +219,7 @@ export default function DocumentsView({
   onlyIncomplete?: boolean;
 }) {
   const { entries: cars, isFuoriCatalogo } = useDossierEntries();
-  const { documents } = useAdmin();
+  const { documents, isAdmin } = useAdmin();
   const { schedaDellAuto } = useGestionale();
   const { openContratto } = useEditors();
 
@@ -352,8 +356,10 @@ export default function DocumentsView({
               car={activeCar}
               query={q}
               onLink={(category) => setLinking({ carId: activeCar.id, category })}
-              onContract={() =>
-                openContratto(isFuoriCatalogo(activeCar.id) ? activeCar.id : schedaDellAuto(activeCar).id)
+              onContract={
+                isAdmin
+                  ? () => openContratto(isFuoriCatalogo(activeCar.id) ? activeCar.id : schedaDellAuto(activeCar).id)
+                  : undefined
               }
             />
           ) : (

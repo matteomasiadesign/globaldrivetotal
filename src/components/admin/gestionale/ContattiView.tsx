@@ -1,7 +1,12 @@
 "use client";
 
 import React, { useState } from "react";
-import { Mail, Pencil, Phone, Plus, Search, Trash2, Users } from "lucide-react";
+import { FileSpreadsheet, Mail, Pencil, Phone, Plus, Search, Trash2, Upload, Users } from "lucide-react";
+import { foglioContatti } from "@/lib/export/gestionale";
+import { nomeFile, scaricaXlsx } from "@/lib/export/scrivi";
+import ExportMenu, { useContestoExport } from "../ui/ExportMenu";
+import { useUrlState } from "../useUrlState";
+import { ImportaContatti } from "./import/Importa";
 import { useAdmin } from "@/context/AdminContext";
 import { useGestionale } from "@/context/GestionaleContext";
 import { telLink } from "@/lib/admin/phone";
@@ -9,18 +14,20 @@ import type { Contatto, TipoContatto } from "@/lib/gestionale/types";
 import { useEditors } from "../AdminEditors";
 import { EmptyState, FilterTabs, PageHeader, Pill, type TabOption } from "../ui/Layout";
 import RowMenu from "../ui/RowMenu";
-import { btnPrimary, focusRing, inputCls, rowDivider } from "../ui/styles";
+import { btnPrimary, btnSecondary, focusRing, inputCls, rowDivider } from "../ui/styles";
 import { useToast } from "../ui/Toast";
 
 type Filtro = "tutti" | TipoContatto;
 
 export default function ContattiView() {
   const { today } = useAdmin();
-  const { contatti, deleteContatto } = useGestionale();
+  const { contatti, veicoli, deleteContatto } = useGestionale();
   const { openContatto } = useEditors();
   const toast = useToast();
-  const [filtro, setFiltro] = useState<Filtro>("tutti");
+  const ctx = useContestoExport();
+  const [filtro, setFiltro] = useUrlState<Filtro>("tipo", "tutti");
   const [query, setQuery] = useState("");
+  const [importa, setImporta] = useState(false);
 
   // «Entrambi» compare tra i clienti e tra i fornitori.
   const matchTipo = (c: Contatto, f: Filtro) => f === "tutti" || c.tipo === f || c.tipo === "Entrambi";
@@ -42,12 +49,31 @@ export default function ContattiView() {
         title="Contatti"
         description="Clienti e fornitori in un'unica anagrafica: servono ai contratti, ai movimenti e al noleggio."
         actions={
-          <button type="button" onClick={() => openContatto()} className={btnPrimary}>
-            <Plus className="size-4" />
-            Nuovo contatto
-          </button>
+          <>
+            <ExportMenu
+              nome={nomeFile("Contatti", filtro === "tutti" ? undefined : filtro)}
+              fogli={() => [foglioContatti(visibili, ctx, false)]}
+              extra={[
+                {
+                  // Patente e documento sono dati personali: si esportano solo se servono davvero.
+                  label: "Excel con patente e documento",
+                  icon: FileSpreadsheet,
+                  onSelect: () => void scaricaXlsx([foglioContatti(visibili, ctx, true)], nomeFile("Contatti_documenti")),
+                },
+              ]}
+            />
+            <button type="button" onClick={() => setImporta(true)} className={btnSecondary}>
+              <Upload className="size-4" />
+              <span className="hidden sm:inline">Importa</span>
+            </button>
+            <button type="button" onClick={() => openContatto()} className={btnPrimary}>
+              <Plus className="size-4" />
+              Nuovo contatto
+            </button>
+          </>
         }
       />
+      {importa && <ImportaContatti onClose={() => setImporta(false)} />}
 
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <FilterTabs tabs={tabs} value={filtro} onChange={setFiltro} label="Filtra contatti" />
@@ -110,8 +136,15 @@ export default function ContattiView() {
                       danger: true,
                       confirm: "Conferma: elimina",
                       onSelect: () => {
-                        deleteContatto(c.id);
-                        toast(`${c.nome || "Contatto"} eliminato`);
+                        // Chi ha venduto o comprato un'auto resta in anagrafica: è la controparte della scheda e del contratto.
+                        const auto = veicoli.filter((v) => v.fornitoreId === c.id || v.acquirenteId === c.id).length;
+                        if (auto > 0) {
+                          toast(
+                            `${c.nome || "Il contatto"} non si può eliminare: è collegato a ${auto === 1 ? "un'auto" : `${auto} auto`} come fornitore o acquirente`
+                          );
+                          return;
+                        }
+                        toast(`${c.nome || "Contatto"} eliminato`, { label: "Annulla", onClick: deleteContatto(c.id) });
                       },
                     },
                   ]}

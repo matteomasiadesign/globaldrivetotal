@@ -2,9 +2,13 @@ export type AppointmentType =
   | "Test Drive"
   | "Trattativa / Acquisto"
   | "Consegna Vettura"
+  /** Auto portata da un cliente per il conto vendita o da acquistare. */
+  | "Valutazione auto"
+  | "Ritiro Documenti"
+  // Tipi non più proposti (Global Drive non fa permute né finanziamenti): restano
+  // solo per leggere gli appuntamenti salvati prima.
   | "Perizia Permuta"
-  | "Consulenza Finanziamento"
-  | "Ritiro Documenti";
+  | "Consulenza Finanziamento";
 
 export type AppointmentStatus =
   | "Confermato"

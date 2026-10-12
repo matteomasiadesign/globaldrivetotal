@@ -80,7 +80,7 @@ function AttentionRow({
 }
 
 export default function TodayView() {
-  const { user, now, today, leads, appointments, documents } = useAdmin();
+  const { user, now, today, leads, appointments, documents, isAdmin } = useAdmin();
   const { cars } = useCars();
   const { veicoli, movimenti, contatti, impostazioni, noleggio } = useGestionale();
   const { openAppointment, openCar } = useEditors();
@@ -109,7 +109,8 @@ export default function TodayView() {
 
   // Conti: scadenze, giacenze e noleggio che richiedono attenzione, più le cifre dell'anno.
   const avvisi = [
-    ...computeAvvisi(veicoli, movimenti, impostazioni, today),
+    // Gli avvisi dei conti (scadenze, IVA, giacenze) sono per l'admin.
+    ...(isAdmin ? computeAvvisi(veicoli, movimenti, impostazioni, today) : []),
     ...computeAvvisiRent(noleggio.veicoli, contatti, today),
   ];
   const conti = veicoli.map((v) => ({ v, c: computeVeicolo(v, movimenti, impostazioni, today) }));
@@ -218,29 +219,31 @@ export default function TodayView() {
             )}
           </Panel>
 
-          <div className="mt-6">
-            <Panel
-              title={`Andamento ${impostazioni.annoGestione}`}
-              action={
-                <Link href="/admin/analisi" className="text-sm text-blue-400 hover:text-blue-300">
-                  Apri analisi
-                </Link>
-              }
-            >
-              <div className="px-4 py-2">
-                <SummaryRow label="Incassi registrati" value={euro(ricavi)} />
-                <SummaryRow label="Risultato delle auto vendute" value={euro(risultatoVendite)} tone={signedText(risultatoVendite)} />
-                <SummaryRow label="Capitale in stock" value={euro(capitaleInStock)} />
-                <SummaryRow
-                  label="Auto in giacenza per servizio"
-                  value={(["Vendita diretta", "Auto su commissione", "Conto vendita"] as const)
-                    .map((servizio) => `${conti.filter(({ v }) => v.servizio === servizio && v.stato !== "Venduta" && v.stato !== "Archiviata").length} ${servizio === "Vendita diretta" ? "dirette" : servizio === "Conto vendita" ? "conto vendita" : "su commissione"}`)
-                    .join(" · ")}
-                />
-                <SummaryRow label={`IVA da versare (T${daVersare.trim} ${daVersare.anno})`} value={euro(ivaDaVersare)} />
-              </div>
-            </Panel>
-          </div>
+          {isAdmin && (
+            <div className="mt-6">
+              <Panel
+                title={`Andamento ${impostazioni.annoGestione}`}
+                action={
+                  <Link href="/admin/analisi" className="text-sm text-blue-400 hover:text-blue-300">
+                    Apri analisi
+                  </Link>
+                }
+              >
+                <div className="px-4 py-2">
+                  <SummaryRow label="Incassi registrati" value={euro(ricavi)} />
+                  <SummaryRow label="Risultato delle auto vendute" value={euro(risultatoVendite)} tone={signedText(risultatoVendite)} />
+                  <SummaryRow label="Capitale in stock" value={euro(capitaleInStock)} />
+                  <SummaryRow
+                    label="Auto in giacenza per servizio"
+                    value={(["Vendita diretta", "Auto su commissione", "Conto vendita"] as const)
+                      .map((servizio) => `${conti.filter(({ v }) => v.servizio === servizio && v.stato !== "Venduta" && v.stato !== "Archiviata").length} ${servizio === "Vendita diretta" ? "dirette" : servizio === "Conto vendita" ? "conto vendita" : "su commissione"}`)
+                      .join(" · ")}
+                  />
+                  <SummaryRow label={`IVA da versare (T${daVersare.trim} ${daVersare.anno})`} value={euro(ivaDaVersare)} />
+                </div>
+              </Panel>
+            </div>
+          )}
         </div>
 
         <div className="space-y-6 lg:col-span-2">

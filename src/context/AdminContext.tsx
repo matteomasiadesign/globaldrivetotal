@@ -13,17 +13,27 @@ import type { SupabaseClient, User } from "@supabase/supabase-js";
 import { getSupabase, isSupabaseConfigured, setRememberSession } from "@/lib/supabase/client";
 import { deleteVehicleFile } from "@/lib/storage/vehicleFiles";
 import { toDateStr } from "@/lib/admin/dates";
+import { LEAD_COLUMNS, leadFromRow, type LeadRow } from "@/lib/leads/rows";
 import type { Appointment, VehicleDocument } from "@/types/admin";
 import type { Lead } from "@/types/lead";
 
-// Stato condiviso dell'area admin. Il login è su Supabase Auth; i dati vivono
-// ancora nel localStorage del browser (come le auto): quando arriverà il
-// database basta cambiare le funzioni qui sotto, le pagine non se ne accorgono.
+// Stato condiviso dell'area admin. Il login è su Supabase Auth e le richieste
+// dei clienti arrivano dalla tabella `leads` di Supabase (le scrive /api/leads);
+// agenda e documenti vivono ancora nel localStorage del browser (come le auto):
+// quando arriverà il database basta cambiare le funzioni qui sotto, le pagine
+// non se ne accorgono.
+
+/** admin = tutto; operatore = niente conti (prezzi d'acquisto, margini, IVA, contratti). */
+export type StaffRole = "admin" | "operatore";
 
 export interface AdminUser {
   email: string;
   name: string;
+  role: StaffRole;
 }
+
+/** Rimette com'era ciò che un'eliminazione ha tolto (per il pulsante «Annulla»). */
+export type Annulla = () => void;
 
 export type NewAppointment = Omit<Appointment, "id" | "createdAt">;
 export type NewDocument = Omit<VehicleDocument, "id" | "dateAdded">;
@@ -40,17 +50,25 @@ interface AdminContextValue {
   today: string;
   now: number;
 
+  /** true se l'utente vede i conti (ruolo admin). */
+  isAdmin: boolean;
+
   leads: Lead[];
+  /** Messaggio da mostrare se le richieste non si riescono a leggere o aggiornare. */
+  leadsError: string | null;
+  /** Rilegge subito le richieste (si aggiornano comunque da sole ogni minuto). */
+  refreshLeads: () => void;
   updateLead: (id: string, patch: Partial<Lead>) => void;
 
   appointments: Appointment[];
   addAppointment: (data: NewAppointment) => Appointment;
   updateAppointment: (id: string, patch: Partial<Appointment>) => void;
-  deleteAppointment: (id: string) => void;
+  deleteAppointment: (id: string) => Annulla;
 
   documents: VehicleDocument[];
   addDocument: (data: NewDocument) => void;
-  deleteDocument: (id: string) => void;
+  /** Il file caricato si cancella dopo qualche secondo, così «Annulla» lo ritrova. */
+  deleteDocument: (id: string) => Annulla;
   deleteDocumentsOfCar: (carId: string) => void;
   /** Sposta il dossier da un'auto a un'altra chiave (es. all'uscita dal catalogo passa alla scheda economica). */
   reassignDocuments: (fromId: string, toId: string) => void;
@@ -61,16 +79,25 @@ const AdminContext = createContext<AdminContextValue | undefined>(undefined);
 const KEYS = {
   appointments: "global_drive_appointments_v3",
   documents: "global_drive_documents_v3",
-  leads: "global_drive_leads_v2",
+  /**
+   * Richiesta → contatto in anagrafica. L'anagrafica è ancora nel browser (id non uuid), quindi
+   * il collegamento non può stare nella colonna leads.contatto_id: resta qui finché non migra.
+   */
+  leadLinks: "global_drive_lead_links_v1",
 } as const;
 
-/** Chiavi delle versioni precedenti (login finto e dati demo): si cancellano alla prima apertura. */
+/** Chiavi delle versioni precedenti (login finto, dati demo, richieste nel browser): si cancellano alla prima apertura. */
 const LEGACY_KEYS = [
   "global_drive_admin_session",
   "global_drive_appointments_v2",
   "global_drive_documents_v2",
   "global_drive_leads_v1",
+  "global_drive_leads_v2",
 ];
+
+const LEADS_REFRESH_MS = 60_000;
+/** Quanto resta disponibile «Annulla» (come il toast) prima di cancellare davvero un file. */
+const UNDO_MS = 8_000;
 
 function read<T>(key: string): T | null {
   try {
@@ -99,7 +126,7 @@ async function staffUser(
 ): Promise<{ user: AdminUser } | { error: string }> {
   const { data, error } = await supabase
     .from("staff_profiles")
-    .select("full_name, active")
+    .select("full_name, active, role")
     .eq("id", u.id)
     .maybeSingle();
   if (error) {
@@ -108,7 +135,8 @@ async function staffUser(
       : { error: "Impossibile verificare l'account. Riprova tra poco." };
   }
   if (!data?.active) return { error: "Questo account non è abilitato all'area admin." };
-  return { user: { email: u.email ?? "", name: data.full_name || "Admin" } };
+  const role: StaffRole = data.role === "admin" ? "admin" : "operatore";
+  return { user: { email: u.email ?? "", name: data.full_name || (role === "admin" ? "Admin" : "Operatore"), role } };
 }
 
 function loginErrorMessage(message: string): string {
@@ -127,7 +155,9 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
   const [authReady, setAuthReady] = useState(!isSupabaseConfigured);
   const [user, setUser] = useState<AdminUser | null>(null);
   const [now, setNow] = useState(() => Date.now());
-  const [leads, setLeads] = useState<Lead[]>([]);
+  const [leadRows, setLeadRows] = useState<Lead[]>([]);
+  const [leadLinks, setLeadLinks] = useState<Record<string, string>>({});
+  const [leadsError, setLeadsError] = useState<string | null>(null);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [documents, setDocuments] = useState<VehicleDocument[]>([]);
 
@@ -145,8 +175,8 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
     const storedDocs = read<VehicleDocument[]>(KEYS.documents);
     if (Array.isArray(storedDocs)) setDocuments(storedDocs);
 
-    const storedLeads = read<Lead[]>(KEYS.leads);
-    if (Array.isArray(storedLeads)) setLeads(storedLeads);
+    const storedLinks = read<Record<string, string>>(KEYS.leadLinks);
+    if (storedLinks && typeof storedLinks === "object") setLeadLinks(storedLinks);
 
     setNow(Date.now());
     setDataReady(true);
@@ -189,8 +219,46 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
     if (dataReady) write(KEYS.documents, documents);
   }, [documents, dataReady]);
   useEffect(() => {
-    if (dataReady) write(KEYS.leads, leads);
-  }, [leads, dataReady]);
+    if (dataReady) write(KEYS.leadLinks, leadLinks);
+  }, [leadLinks, dataReady]);
+
+  // Richieste dal database: all'accesso, ogni minuto e quando si torna sulla scheda.
+  const fetchLeads = useCallback(async () => {
+    const supabase = getSupabase();
+    if (!supabase) return;
+    const { data, error } = await supabase
+      .from("leads")
+      .select(LEAD_COLUMNS)
+      .order("created_at", { ascending: false })
+      .limit(1000);
+    if (error) {
+      console.error("Richieste non lette", error);
+      setLeadsError("Non riesco a leggere le richieste dal database. Riprovo tra poco.");
+      return;
+    }
+    setLeadsError(null);
+    setLeadRows((data as LeadRow[]).map(leadFromRow));
+  }, []);
+
+  useEffect(() => {
+    if (!user) return;
+    // fetchLeads aggiorna lo stato solo dopo la risposta del database, non durante l'effetto.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void fetchLeads();
+    const t = setInterval(() => void fetchLeads(), LEADS_REFRESH_MS);
+    const onFocus = () => document.visibilityState === "visible" && void fetchLeads();
+    document.addEventListener("visibilitychange", onFocus);
+    return () => {
+      clearInterval(t);
+      document.removeEventListener("visibilitychange", onFocus);
+    };
+  }, [user, fetchLeads]);
+
+  // Dopo l'uscita non resta niente a video (all'accesso successivo si rileggono).
+  const leads = useMemo(
+    () => (user ? leadRows.map((l) => (leadLinks[l.id] ? { ...l, contattoId: leadLinks[l.id] } : l)) : []),
+    [user, leadRows, leadLinks]
+  );
 
   // Tiene "oggi" e i "x min fa" aggiornati anche se la scheda resta aperta.
   useEffect(() => {
@@ -222,9 +290,46 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
     void getSupabase()?.auth.signOut();
   }, []);
 
+  // Lo stato si salva nel database (subito a video, poi confermato); il collegamento al
+  // contatto resta nel browser come l'anagrafica.
   const updateLead = useCallback((id: string, patch: Partial<Lead>) => {
-    setLeads((prev) => prev.map((l) => (l.id === id ? { ...l, ...patch } : l)));
+    const { contattoId, ...resto } = patch;
+    if (contattoId !== undefined) {
+      setLeadLinks((prev) => {
+        const next = { ...prev };
+        if (contattoId) next[id] = contattoId;
+        else delete next[id];
+        return next;
+      });
+    }
+    if (resto.status === undefined) return;
+    const status = resto.status;
+    let previous: Lead["status"] | undefined;
+    setLeadRows((prev) =>
+      prev.map((l) => {
+        if (l.id !== id) return l;
+        previous = l.status;
+        return { ...l, status };
+      })
+    );
+    const supabase = getSupabase();
+    if (!supabase) return;
+    void supabase
+      .from("leads")
+      .update({ status })
+      .eq("id", id)
+      .then(({ error }) => {
+        if (!error) return;
+        console.error("Stato della richiesta non salvato", error);
+        setLeadsError("Una modifica alle richieste non è stata salvata: controlla la connessione e riprova.");
+        if (previous) {
+          const back = previous;
+          setLeadRows((prev) => prev.map((l) => (l.id === id ? { ...l, status: back } : l)));
+        }
+      });
   }, []);
+
+  const refreshLeads = useCallback(() => void fetchLeads(), [fetchLeads]);
 
   const addAppointment = useCallback((data: NewAppointment) => {
     const item: Appointment = {
@@ -240,8 +345,23 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
     setAppointments((prev) => prev.map((a) => (a.id === id ? { ...a, ...patch } : a)));
   }, []);
 
-  const deleteAppointment = useCallback((id: string) => {
+  const appointmentsRef = useRef(appointments);
+  useEffect(() => {
+    appointmentsRef.current = appointments;
+  }, [appointments]);
+
+  const deleteAppointment = useCallback((id: string): Annulla => {
+    const index = appointmentsRef.current.findIndex((a) => a.id === id);
+    const removed = appointmentsRef.current[index];
+    if (!removed) return () => {};
     setAppointments((prev) => prev.filter((a) => a.id !== id));
+    return () =>
+      setAppointments((prev) => {
+        if (prev.some((a) => a.id === id)) return prev;
+        const next = [...prev];
+        next.splice(Math.min(index, next.length), 0, removed);
+        return next;
+      });
   }, []);
 
   const addDocument = useCallback((data: NewDocument) => {
@@ -259,10 +379,23 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
     documentsRef.current = documents;
   }, [documents]);
 
-  const deleteDocument = useCallback((id: string) => {
-    const doc = documentsRef.current.find((d) => d.id === id);
-    if (doc?.storagePath) void deleteVehicleFile(doc.storagePath);
+  const deleteDocument = useCallback((id: string): Annulla => {
+    const index = documentsRef.current.findIndex((d) => d.id === id);
+    const doc = documentsRef.current[index];
+    if (!doc) return () => {};
     setDocuments((prev) => prev.filter((d) => d.id !== id));
+    // Il file si cancella solo quando «Annulla» non è più disponibile.
+    const storagePath = doc.storagePath;
+    const timer = storagePath ? setTimeout(() => void deleteVehicleFile(storagePath), UNDO_MS) : undefined;
+    return () => {
+      clearTimeout(timer);
+      setDocuments((prev) => {
+        if (prev.some((d) => d.id === id)) return prev;
+        const next = [...prev];
+        next.splice(Math.min(index, next.length), 0, doc);
+        return next;
+      });
+    };
   }, []);
 
   const reassignDocuments = useCallback((fromId: string, toId: string) => {
@@ -284,7 +417,10 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
       logout,
       today: toDateStr(new Date(now)),
       now,
+      isAdmin: user?.role === "admin",
       leads,
+      leadsError,
+      refreshLeads,
       updateLead,
       appointments,
       addAppointment,
@@ -304,6 +440,8 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
       logout,
       now,
       leads,
+      leadsError,
+      refreshLeads,
       updateLead,
       appointments,
       addAppointment,

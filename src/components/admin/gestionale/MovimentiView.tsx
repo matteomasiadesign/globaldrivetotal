@@ -1,31 +1,44 @@
 "use client";
 
 import React, { useState } from "react";
-import { Pencil, Plus, Receipt, Search, Trash2 } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { CarFront, Check, Copy, Paperclip, Pencil, Plus, Receipt, Search, Trash2, Upload, UserRound } from "lucide-react";
+import { ImportaMovimenti } from "./import/Importa";
 import { useAdmin } from "@/context/AdminContext";
 import { useGestionale } from "@/context/GestionaleContext";
 import { formatDate } from "@/lib/admin/dates";
+import { foglioMovimenti, foglioPrimaNota } from "@/lib/export/gestionale";
+import { nomeFile } from "@/lib/export/scrivi";
 import { euro, nomeVeicolo } from "@/lib/gestionale/calc";
+import { anniDisponibili, etichettaPeriodo, inPeriodo, type Periodo } from "@/lib/gestionale/periodo";
 import type { Movimento } from "@/lib/gestionale/types";
 import { useEditors } from "../AdminEditors";
+import { useUrlState } from "../useUrlState";
 import { Stat, signedText } from "../ui/Data";
+import ExportMenu, { useContestoExport } from "../ui/ExportMenu";
 import { SelectField } from "../ui/Inputs";
 import { EmptyState, FilterTabs, PageHeader, Pill, type TabOption } from "../ui/Layout";
+import { PeriodoSelect } from "../ui/PeriodoSelect";
 import RowMenu from "../ui/RowMenu";
-import { btnPrimary, inputCls, rowDivider } from "../ui/styles";
+import { btnPrimary, btnSecondary, inputCls, rowDivider } from "../ui/styles";
 import { useToast } from "../ui/Toast";
 
 type TipoFiltro = "tutti" | "Entrata" | "Uscita";
 
 export default function MovimentiView({ initialAuto }: { initialAuto?: string }) {
-  const { today } = useAdmin();
-  const { movimenti, veicoli, deleteMovimento } = useGestionale();
-  const { openMovimento } = useEditors();
+  const router = useRouter();
+  const { today, isAdmin } = useAdmin();
+  const { movimenti, veicoli, deleteMovimento, updateMovimento } = useGestionale();
+  const { openMovimento, openContatto } = useEditors();
   const toast = useToast();
 
-  const [tipo, setTipo] = useState<TipoFiltro>("tutti");
+  const ctx = useContestoExport();
+  const [tipo, setTipo] = useUrlState<TipoFiltro>("tipo", "tutti");
+  const [periodo, setPeriodo] = useUrlState<Periodo>("periodo", "tutto");
   const [auto, setAuto] = useState(initialAuto ?? "");
   const [query, setQuery] = useState("");
+  const [importa, setImporta] = useState(false);
+  const anni = anniDisponibili(movimenti.map((m) => m.data), Number(today.slice(0, 4)));
 
   const nomeAuto = (id: string | null) => {
     const v = veicoli.find((x) => x.id === id);
@@ -34,6 +47,7 @@ export default function MovimentiView({ initialAuto }: { initialAuto?: string })
 
   const q = query.trim().toLowerCase();
   const visibili = movimenti
+    .filter((m) => inPeriodo(m.data, periodo))
     .filter((m) => tipo === "tutti" || m.tipo === tipo)
     .filter((m) => !auto || (auto === "generale" ? m.autoId === null : m.autoId === auto))
     .filter(
@@ -48,10 +62,11 @@ export default function MovimentiView({ initialAuto }: { initialAuto?: string })
   const entrate = visibili.filter((m) => m.tipo === "Entrata").reduce((s, m) => s + m.totale, 0);
   const uscite = visibili.filter((m) => m.tipo === "Uscita").reduce((s, m) => s + m.totale, 0);
 
+  const nelPeriodo = movimenti.filter((m) => inPeriodo(m.data, periodo));
   const tabs: TabOption<TipoFiltro>[] = [
-    { id: "tutti", label: "Tutti", count: movimenti.length },
-    { id: "Entrata", label: "Entrate", count: movimenti.filter((m) => m.tipo === "Entrata").length },
-    { id: "Uscita", label: "Uscite", count: movimenti.filter((m) => m.tipo === "Uscita").length },
+    { id: "tutti", label: "Tutti", count: nelPeriodo.length },
+    { id: "Entrata", label: "Entrate", count: nelPeriodo.filter((m) => m.tipo === "Entrata").length },
+    { id: "Uscita", label: "Uscite", count: nelPeriodo.filter((m) => m.tipo === "Uscita").length },
   ];
 
   function stato(m: Movimento) {
@@ -66,12 +81,31 @@ export default function MovimentiView({ initialAuto }: { initialAuto?: string })
         title="Movimenti"
         description="Il libro cassa e banca: ogni entrata e uscita, collegata a un'auto o generale."
         actions={
-          <button type="button" onClick={() => openMovimento({ autoId: auto && auto !== "generale" ? auto : undefined })} className={btnPrimary}>
-            <Plus className="size-4" />
-            Nuovo movimento
-          </button>
+          <>
+            <ExportMenu
+              nome={nomeFile("Movimenti", periodo === "tutto" ? undefined : periodo)}
+              fogli={() => [
+                foglioMovimenti(visibili, ctx, [
+                  `Movimenti · ${etichettaPeriodo(periodo)}${tipo !== "tutti" ? ` · ${tipo === "Entrata" ? "entrate" : "uscite"}` : ""}${
+                    auto ? ` · ${auto === "generale" ? "solo generali" : nomeAuto(auto)}` : ""
+                  }${q ? ` · ricerca "${query.trim()}"` : ""}`,
+                ]),
+                foglioPrimaNota(ctx, periodo),
+              ]}
+            />
+            <button type="button" onClick={() => setImporta(true)} className={btnSecondary}>
+              <Upload className="size-4" />
+              <span className="hidden sm:inline">Importa</span>
+            </button>
+            <button type="button" onClick={() => openMovimento({ autoId: auto && auto !== "generale" ? auto : undefined })} className={btnPrimary}>
+              <Plus className="size-4" />
+              Nuovo movimento
+            </button>
+          </>
         }
       />
+
+      {importa && <ImportaMovimenti onClose={() => setImporta(false)} />}
 
       <div className="mb-4 grid gap-3 sm:grid-cols-3">
         <Stat label="Entrate" value={euro(entrate)} />
@@ -81,6 +115,7 @@ export default function MovimentiView({ initialAuto }: { initialAuto?: string })
 
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <FilterTabs tabs={tabs} value={tipo} onChange={setTipo} label="Filtra per tipo" />
+        <PeriodoSelect value={periodo} onChange={setPeriodo} anni={anni} />
         <SelectField
           value={auto}
           blank="Tutte le auto"
@@ -128,6 +163,7 @@ export default function MovimentiView({ initialAuto }: { initialAuto?: string })
                     {m.fornitoreCliente ? ` · ${m.fornitoreCliente}` : ""}
                   </span>
                 </button>
+                {m.allegatoPath && <Paperclip className="size-4 shrink-0 text-adm-muted" aria-label="Con allegato" />}
                 {stato(m)}
                 <span className={`min-w-24 text-right font-medium tabular-nums ${m.tipo === "Entrata" ? "text-emerald-400" : "text-slate-100"}`}>
                   {m.tipo === "Entrata" ? "+" : "−"} {euro(m.totale)}
@@ -136,14 +172,35 @@ export default function MovimentiView({ initialAuto }: { initialAuto?: string })
                   label={`Azioni per ${nome}`}
                   items={[
                     { label: "Modifica", icon: Pencil, onSelect: () => openMovimento({ movimentoId: m.id }) },
+                    ...(m.statoPagamento === "Da saldare"
+                      ? [
+                          {
+                            label: m.tipo === "Entrata" ? "Segna incassato" : "Segna pagato",
+                            icon: Check,
+                            onSelect: () => {
+                              updateMovimento(m.id, { statoPagamento: "Saldato", dataSaldo: today });
+                              toast(m.tipo === "Entrata" ? "Incasso registrato" : "Pagamento registrato", {
+                                label: "Annulla",
+                                onClick: () => updateMovimento(m.id, { statoPagamento: "Da saldare", dataSaldo: "" }),
+                              });
+                            },
+                          },
+                        ]
+                      : []),
+                    { label: "Duplica", icon: Copy, onSelect: () => openMovimento({ duplicaDa: m.id }) },
+                    ...(m.autoId && isAdmin
+                      ? [{ label: "Apri scheda auto", icon: CarFront, onSelect: () => router.push(`/admin/auto/${m.autoId}`) }]
+                      : []),
+                    ...(m.contattoId
+                      ? [{ label: "Apri contatto", icon: UserRound, onSelect: () => openContatto({ contattoId: m.contattoId as string }) }]
+                      : []),
                     {
                       label: "Elimina",
                       icon: Trash2,
                       danger: true,
                       confirm: "Conferma: elimina",
                       onSelect: () => {
-                        deleteMovimento(m.id);
-                        toast("Movimento eliminato");
+                        toast("Movimento eliminato", { label: "Annulla", onClick: deleteMovimento(m.id) });
                       },
                     },
                   ]}

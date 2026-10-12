@@ -47,7 +47,30 @@ export interface RentPrenotazione {
   luogoRitiro: string;
   luogoRiconsegna: string;
   note: string;
+  /** Km e carburante al ritiro e alla riconsegna (null/"" finché non si registrano). */
+  kmRitiro: number | null;
+  kmRiconsegna: number | null;
+  carburanteRitiro: string;
+  carburanteRiconsegna: string;
+  /** Incasso registrato tra i movimenti quando il noleggio si conclude. */
+  movimentoId: string | null;
 }
+
+export const LIVELLI_CARBURANTE = ["Pieno", "3/4", "1/2", "1/4", "Riserva"];
+
+type CampiDopo = "note" | "kmRitiro" | "kmRiconsegna" | "carburanteRitiro" | "carburanteRiconsegna";
+/** Quello che serve per creare una prenotazione: il resto si compila al ritiro e alla riconsegna. */
+export type NuovaPrenotazione = Omit<RentPrenotazione, "id" | "stato" | "movimentoId" | CampiDopo> &
+  Partial<Pick<RentPrenotazione, CampiDopo>>;
+
+export const prenotazioneVuota = {
+  note: "",
+  kmRitiro: null,
+  kmRiconsegna: null,
+  carburanteRitiro: "",
+  carburanteRiconsegna: "",
+  movimentoId: null,
+} satisfies Partial<RentPrenotazione>;
 
 export interface RentTariffa {
   id: string;

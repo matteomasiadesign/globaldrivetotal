@@ -1,14 +1,14 @@
 "use client";
 
 import React, { useState } from "react";
-import { Inbox, Search } from "lucide-react";
+import { Inbox, RefreshCw, Search } from "lucide-react";
 import { useAdmin } from "@/context/AdminContext";
 import { LEAD_TYPE_LABEL } from "@/lib/admin/constants";
 import type { Lead, LeadType } from "@/types/lead";
 import LeadRow from "../LeadRow";
 import { useUrlState } from "../useUrlState";
 import { EmptyState, FilterTabs, PageHeader, type TabOption } from "../ui/Layout";
-import { inputCls } from "../ui/styles";
+import { btnSecondary, inputCls } from "../ui/styles";
 
 export type LeadTab = "nuovo" | "in_gestione" | "chiuse";
 
@@ -33,7 +33,7 @@ const EMPTY: Record<LeadTab, { title: string; description: string }> = {
 };
 
 export default function LeadsView({ initialTab }: { initialTab?: LeadTab }) {
-  const { leads } = useAdmin();
+  const { leads, leadsError, refreshLeads } = useAdmin();
 
   const count = (tab: LeadTab) => leads.filter((l) => matchesTab(l, tab)).length;
 
@@ -71,7 +71,19 @@ export default function LeadsView({ initialTab }: { initialTab?: LeadTab }) {
       <PageHeader
         title="Richieste"
         description="Chi ti ha scritto dal sito o da Casper. Chiama, rispondi o fissa un appuntamento."
+        actions={
+          <button type="button" onClick={refreshLeads} className={btnSecondary}>
+            <RefreshCw className="size-4" />
+            Aggiorna
+          </button>
+        }
       />
+
+      {leadsError && (
+        <div role="alert" className="mb-4 rounded-xl border border-rose-500/40 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
+          {leadsError}
+        </div>
+      )}
 
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <FilterTabs tabs={tabs} value={tab} onChange={setTab} label="Stato richieste" />

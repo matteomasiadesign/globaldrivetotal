@@ -53,7 +53,7 @@ function Check({
 export default function VeicoloView({ veicoloId }: { veicoloId: string }) {
   const router = useRouter();
   const toast = useToast();
-  const { today, leads, appointments } = useAdmin();
+  const { today, leads, appointments, documents } = useAdmin();
   const { cars } = useCars();
   const { openCar, openMovimento, openContratto, openAppointment } = useEditors();
   const { veicoli, movimenti, contatti, impostazioni, updateVeicolo, deleteVeicolo, deleteMovimento } = useGestionale();
@@ -106,7 +106,11 @@ export default function VeicoloView({ veicoloId }: { veicoloId: string }) {
                 ...(car
                   ? [
                       { label: "Modifica scheda pubblica", icon: Pencil, onSelect: () => openCar(car.id) },
-                      { label: "Vedi nel catalogo", icon: ExternalLink, onSelect: () => window.open("/catalogo", "_blank") },
+                      {
+                        label: "Vedi nel catalogo",
+                        icon: ExternalLink,
+                        onSelect: () => window.open(`/catalogo?auto=${encodeURIComponent(car.id)}`, "_blank"),
+                      },
                     ]
                   : []),
                 {
@@ -114,17 +118,38 @@ export default function VeicoloView({ veicoloId }: { veicoloId: string }) {
                   icon: FolderOpen,
                   onSelect: () => router.push(`/admin/documenti?auto=${v.carId ?? v.id}`),
                 },
-                {
-                  label: "Elimina scheda",
-                  icon: Trash2,
-                  danger: true,
-                  confirm: "Conferma: elimina anche i movimenti",
-                  onSelect: () => {
-                    deleteVeicolo(v.id);
-                    toast(`${nome} eliminata`);
-                    router.push("/admin/auto");
-                  },
-                },
+                // Un'auto del catalogo si elimina da Parco auto (la scheda resta, archiviata); una con
+                // documenti o contratto si archivia, così i conti e il dossier non si perdono.
+                car || v.numeroContratto || documents.some((d) => d.carId === v.id)
+                  ? {
+                      label: "Archivia scheda",
+                      icon: Trash2,
+                      onSelect: () => {
+                        patch({ stato: "Archiviata" });
+                        toast(
+                          car
+                            ? `${nome} archiviata e nascosta dal sito. Per toglierla dal catalogo usa Parco auto`
+                            : `${nome} archiviata: conti e documenti restano`
+                        );
+                      },
+                    }
+                  : {
+                      label: "Elimina scheda",
+                      icon: Trash2,
+                      danger: true,
+                      confirm: mie.length ? `Conferma: elimina anche ${mie.length} movimenti` : "Conferma: elimina",
+                      onSelect: () => {
+                        const annulla = deleteVeicolo(v.id);
+                        toast(`${nome} eliminata`, {
+                          label: "Annulla",
+                          onClick: () => {
+                            annulla();
+                            router.push(`/admin/auto/${v.id}`);
+                          },
+                        });
+                        router.push("/admin/auto");
+                      },
+                    },
               ]}
             />
           </>
@@ -280,7 +305,7 @@ export default function VeicoloView({ veicoloId }: { veicoloId: string }) {
                       label={`Azioni per ${m.descrizione || m.categoria}`}
                       items={[
                         { label: "Modifica", icon: Pencil, onSelect: () => openMovimento({ movimentoId: m.id }) },
-                        { label: "Elimina", icon: Trash2, danger: true, confirm: "Conferma: elimina", onSelect: () => { deleteMovimento(m.id); toast("Movimento eliminato"); } },
+                        { label: "Elimina", icon: Trash2, danger: true, confirm: "Conferma: elimina", onSelect: () => toast("Movimento eliminato", { label: "Annulla", onClick: deleteMovimento(m.id) }) },
                       ]}
                     />
                   </div>

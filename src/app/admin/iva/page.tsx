@@ -1,6 +1,6 @@
 import IvaView, { type IvaTab } from "@/components/admin/gestionale/IvaView";
 
-const TABS: IvaTab[] = ["liquidazione", "vendite", "acquisti"];
+const TABS: IvaTab[] = ["liquidazione", "vendite", "acquisti", "altre"];
 
 export default async function IvaPage({
   searchParams,
